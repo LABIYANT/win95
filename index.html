@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RetroOS | Professional Edition</title>
+    <style>
+        /* --- SİSTEM GENELİ --- */
+        :root {
+            --win-gray: #c0c0c0;
+            --win-dark-gray: #808080;
+            --win-blue: #000080;
+            --win-text: #000;
+            --desktop-bg: #008080;
+        }
+
+        * { box-sizing: border-box; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: #000;
+            font-family: 'Tahoma', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* 3D Border Efektleri */
+        .outset { border: 2px solid; border-color: #fff #000 #000 #fff; background: var(--win-gray); }
+        .inset { border: 2px solid; border-color: #404040 #fff #fff #404040; background: #fff; }
+
+        /* --- BIOS BOOT EKRANI --- */
+        #boot-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: black; color: #ccc; font-family: 'Courier New', monospace;
+            padding: 40px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .cursor { animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* --- BSOD (Mavi Ekran) --- */
+        #bsod {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0000AA; color: white; font-family: 'Courier New', monospace;
+            padding: 50px; z-index: 10000; font-weight: bold;
+        }
+
+        /* --- MASAÜSTÜ --- */
+        #desktop {
+            width: 100%; height: calc(100% - 34px);
+            background-color: var(--desktop-bg);
+            position: relative;
+            display: none;
+        }
+
+        /* --- CRT EFEKT KATMANI --- */
+        #crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none; z-index: 5000;
+            opacity: 0; transition: opacity 0.5s;
+        }
+        .crt-on #crt-overlay { opacity: 1; }
+
+        /* --- İKONLAR --- */
+        .icon-grid {
+            display: flex; flex-direction: column; flex-wrap: wrap; gap: 20px;
+            padding: 20px; height: 100%; align-content: flex-start;
+        }
+        .desktop-icon {
+            width: 80px; display: flex; flex-direction: column; align-items: center;
+            color: white; cursor: pointer; text-align: center;
+            border: 1px solid transparent; padding: 2px;
+        }
+        .desktop-icon:active { border: 1px dotted white; background: rgba(0,0,80,0.5); }
+        .desktop-icon .ico-img { 
+            width: 32px; height: 32px; margin-bottom: 5px; font-size: 28px;
+        }
+        .desktop-icon span { font-size: 11px; text-shadow: 1px 1px 1px black; }
+
+        /* --- PENCERELER --- */
+        .window {
+            position: absolute;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+            min-width: 200px; min-height: 150px;
+        }
+        
+        .title-bar {
+            background: linear-gradient(90deg, var(--win-blue), #1084d0); color: white;
+            padding: 3px 4px; font-weight: bold; font-size: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: default;
+        }
+        .title-bar.inactive { background: var(--win-dark-gray); }
+
+        .title-bar-controls button {
+            width: 16px; height: 14px; font-size: 9px; line-height: 10px;
+            background: var(--win-gray); border: 1px outset #fff; cursor: pointer;
+            font-weight: bold; margin-left: 2px; padding: 0;
+        }
+        .title-bar-controls button:active { border-style: inset; }
+
+        .window-content {
+            flex: 1; padding: 2px; overflow: hidden;
+            display: flex; flex-direction: column;
+            background: var(--win-gray);
+            position: relative;
+        }
+
+        /* --- GÖREV ÇUBUĞU --- */
+        #taskbar {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 34px;
+            background: var(--win-gray); border-top: 2px solid #fff;
+            display: flex; align-items: center; padding: 2px;
+            z-index: 9000;
+        }
+        .start-btn {
+            display: flex; align-items: center; gap: 5px;
+            padding: 2px 5px; margin-right: 5px; height: 26px;
+            font-weight: bold; font-style: italic; font-size: 13px;
+            border: 2px outset #fff; background: var(--win-gray);
+            cursor: pointer;
+        }
+        .start-btn:active, .start-btn.active { border-style: inset; background: #ddd; }
+        
+        /* BAŞLAT MENÜSÜ */
+        #start-menu {
+            position: absolute; bottom: 34px; left: 2px;
+            width: 200px; background: var(--win-gray);
+            border: 2px outset #fff; box-shadow: 4px 4px 5px rgba(0,0,0,0.5);
+            display: none; flex-direction: column; z-index: 9100;
+        }
+        .start-side-strip {
+            background: linear-gradient(180deg, #000080, #0000FF);
+            color: white; width: 25px; writing-mode: vertical-rl;
+            text-align: center; font-weight: bold; padding: 10px 0;
+            transform: rotate(180deg);
+        }
+        .start-item {
+            padding: 8px 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 12px;
+        }
+        .start-item:hover { background: #000080; color: white; }
+        .start-divider { height: 1px; background: #888; margin: 3px 0; border-bottom: 1px solid #fff; }
+
+        .clock-area {
+            margin-left: auto; border: 2px inset #dfdfdf;
+            padding: 4px 10px; background: #eee; font-size: 11px; margin-right: 2px;
+        }
+
+        .task-item {
+            width: 150px; padding: 3px 5px; margin-right: 3px; height: 26px;
+            background: var(--win-gray); border: 2px outset #fff;
+            font-size: 11px; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; cursor: pointer;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .task-item.active { border-style: inset; background: #ddd; font-weight: bold;}
+
+        /* --- ÖZEL APP STİLLERİ --- */
+        
+        /* RetroTube Grid */
+        .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; padding: 10px; overflow-y: auto; background: white;}
+        .vid-item { cursor: pointer; font-size: 11px; text-align: center; }
+        .vid-item:hover img { outline: 2px solid blue; }
+        .vid-item img { width: 100%; height: 80px; object-fit: cover; background: black; }
+        
+        /* Inputs */
+        input[type="text"] { border: 2px inset #ddd; padding: 3px; font-family: 'Tahoma'; }
+        
+        /* Snake Game Canvas */
+        #snakeCanvas { 
+            background: #9BB825; /* Nokia Green */
+            border: 4px solid #485223;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.2);
+            image-rendering: pixelated;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="crt-overlay"></div>
+
+    <div id="bsod" onclick="location.reload()">
+        <p>A fatal exception 0E has occurred at 0028:C0011E36 in VXD VMM(01) + 00010E36.</p>
+        <p>The current application will be terminated.</p>
+        <p>* Press any key to terminate the current application.</p>
+        <p>* Press CTRL+ALT+DEL again to restart your computer.</p>
+        <br>
+        <p>Press any key to continue _</p>
+    </div>
+
+    <div id="boot-screen">
+        <div>RETRO-BIOS v2.1 (C) 2025 AI Corp.</div>
+        <div>Main Processor: Quantum Core 128-bit</div>
+        <div>Memory Test: 64000K OK</div>
+        <div>Detecting HDD Primary Master... QUANTUM FIREBALL</div>
+        <div style="margin-top: 20px;">Booting RetroOS... <span class="cursor">_</span></div>
+    </div>
+
+    <div id="desktop">
+        
+        <div class="icon-grid">
+            <div class="desktop-icon" onclick="os.openApp('gecekondu')">
+                <div class="ico-img">🏚️</div>
+                <span>Gecekondu Sim</span>
+            </div>
+            <div class="desktop-icon" onclick="os.openApp('retrotube')">
+                <div class="ico-img">📺</div>
+                <span>RetroTube</span>
+            </div>
+            <div class="desktop-icon" onclick="os.openApp('notepad')">
+                <div class="ico-img">📝</div>
+                <span>Not Defteri</span>
+            </div>
+            <div class="desktop-icon" onclick="os.openApp('snake')">
+                <div class="ico-img">🐍</div>
+                <span>Yılan Oyunu</span>
+            </div>
+            <div class="desktop-icon" onclick="os.openApp('settings')">
+                <div class="ico-img">⚙️</div>
+                <span>Ayarlar</span>
+            </div>
+            <div class="desktop-icon" onclick="os.triggerBSOD()">
+                <div class="ico-img">💣</div>
+                <span>Tehlike</span>
+            </div>
+        </div>
+
+        <div id="start-menu" class="outset">
+            <div style="display: flex;">
+                <div class="start-side-strip">RetroOS</div>
+                <div style="flex:1; padding: 2px;">
+                    <div class="start-item" onclick="os.openApp('gecekondu'); os.toggleStartMenu()">
+                        <span>🏚️</span> Gecekondu Sim
+                    </div>
+                    <div class="start-item" onclick="os.openApp('retrotube'); os.toggleStartMenu()">
+                        <span>📺</span> RetroTube
+                    </div>
+                    <div class="start-item" onclick="os.openApp('notepad'); os.toggleStartMenu()">
+                        <span>📝</span> Not Defteri
+                    </div>
+                    <div class="start-item" onclick="os.openApp('snake'); os.toggleStartMenu()">
+                        <span>🐍</span> Yılan Oyunu
+                    </div>
+                    <div class="start-item" onclick="os.openApp('settings'); os.toggleStartMenu()">
+                        <span>⚙️</span> Ayarlar
+                    </div>
+                    <div class="start-divider"></div>
+                    <div class="start-item" onclick="location.reload()">
+                        <span>🛑</span> Bilgisayarı Kapat
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="taskbar">
+            <button class="start-btn" id="start-btn" onclick="os.toggleStartMenu()">
+                <img src="https://win98icons.alexmeub.com/icons/png/windows-0.png" width="16" style="margin-right:2px;"> Başlat
+            </button>
+            <div style="width: 2px; border-left: 1px solid #888; border-right: 1px solid #fff; height: 20px; margin: 0 5px;"></div>
+            <div id="task-list" style="display:flex; flex:1; overflow:hidden;"></div>
+            <div class="clock-area" id="clock">12:00</div>
+        </div>
+    </div>
+
+<script>
+    // --- GECEKONDU OYUNU KAYNAK KODU (IFRAME İÇİN) ---
+    // Bu kod blob olarak pencere içine gömülecek
+    const GECEKONDU_SOURCE_CODE = `
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; user-select: none; }
+        #night-sky { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 50% 30%, #1a1a1a 0%, #000000 100%); z-index: -10; }
+        .star { position: absolute; background: white; border-radius: 50%; animation: twinkle 3s infinite ease-in-out; z-index: -5; box-shadow: 0 0 4px white; }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+        #start-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; color: white; border: 2px solid #333; }
+        #start-btn { padding: 20px 40px; font-size: 24px; background: #2e7d32; color: white; border: none; cursor: pointer; border-radius: 5px; box-shadow: 0 0 15px #2e7d32; text-transform: uppercase; font-weight: bold; margin-top: 20px; }
+        .info-box { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(50, 50, 50, 0.9); padding: 10px; border-radius: 5px; z-index: 1000; font-size: 14px; border: 1px solid #777; }
+        .key { background: #000; color: #fff; padding: 2px 6px; border-radius: 3px; border: 1px solid #fff; font-weight: bold;}
+        .skyline { position: absolute; bottom: 120px; left: 0; width: 100%; height: 60%; display: flex; justify-content: center; align-items: flex-end; gap: 2px; z-index: 1; opacity: 0.4; pointer-events: none; }
+        .building { width: 10%; background: #0d0d0d; position: relative; border-top: 1px solid #333; }
+        .window { width: 4px; height: 6px; background: #ffeb3b; position: absolute; box-shadow: 0 0 5px #ffeb3b; opacity: 0.6; }
+        .ground { position: absolute; bottom: 0; width: 100%; height: 120px; background: #111; border-top: 4px solid #444; z-index: 2; }
+        .shanty-house { position: absolute; bottom: 120px; left: 100px; width: 200px; height: 130px; background: repeating-linear-gradient(90deg, #3e2723, #3e2723 20px, #271c19 22px); z-index: 3; border: 2px solid #000; }
+        .shanty-roof { position: absolute; top: -25px; left: -15px; width: 230px; height: 45px; background: #263238; transform: rotate(-2deg); border-bottom: 3px solid #000; }
+        .shanty-door { position: absolute; bottom: 0; right: 30px; width: 50px; height: 85px; background: #4e342e; border: 2px solid #111; border-bottom: none; }
+        .shanty-window { position: absolute; top: 30px; left: 20px; width: 40px; height: 40px; background: #000; border: 2px solid #333; overflow: hidden; }
+        .shanty-window::before { content: ''; position: absolute; width: 100%; height: 100%; background: rgba(255, 235, 59, 0.2); }
+        .shanty-chimney { position: absolute; top: -50px; left: 140px; width: 20px; height: 60px; background: #333; z-index: 2; }
+        #car { position: absolute; bottom: 115px; left: 450px; width: 240px; height: 60px; z-index: 4; }
+        .car-body { width: 100%; height: 100%; background: #607d8b; border-radius: 10px 50px 5px 5px; position: relative; border: 1px solid #fff; }
+        .car-top { position: absolute; top: -35px; left: 40px; width: 130px; height: 35px; background: #607d8b; border-radius: 20px 20px 0 0; transform: skewX(-15deg); z-index: 1; border-top: 1px solid #fff; }
+        .car-window-area { position: absolute; top: 5px; left: 10px; width: 110px; height: 25px; background: #222; overflow: hidden; display: flex; justify-content: center; align-items: flex-end; }
+        .wheel { width: 42px; height: 42px; background: #111; border: 3px solid #777; border-radius: 50%; position: absolute; bottom: -20px; z-index: 5; display: flex; justify-content: center; align-items: center; }
+        .wheel::after { content:''; width: 35px; height: 2px; background: #aaa; }
+        .w1 { left: 35px; } .w2 { right: 35px; }
+        .spinning { animation: spin 0.2s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .headlight-beam { position: absolute; right: -300px; top: 15px; width: 300px; height: 80px; background: linear-gradient(90deg, rgba(255,255,200,0.5) 0%, transparent 100%); clip-path: polygon(0 40%, 100% 0, 100% 100%, 0 60%); display: none; z-index: 6; }
+        #player { position: absolute; bottom: 115px; left: 250px; width: 50px; height: 90px; z-index: 20; display: flex; flex-direction: column; align-items: center; }
+        .head-img { width: 50px; height: 45px; border-radius: 50%; background: transparent; object-fit: cover; z-index: 22; }
+        .p-body { width: 30px; height: 40px; background: #455a64; border-radius: 5px; position: relative; z-index: 21; border: 1px solid #fff; }
+        .p-legs { display: flex; gap: 5px; height: 30px; z-index: 20;}
+        .p-leg { width: 10px; height: 100%; background: #222; border: 1px solid #555; }
+        .crouch .head-img { transform: translateY(15px) rotate(5deg); }
+        .crouch .p-body { height: 25px; margin-top: 10px; }
+        .hidden-body { display: none !important; }
+        .poop-pile { position: absolute; bottom: 125px; width: 25px; height: 20px; background: #8d6e63; border-radius: 50% 50% 5px 5px; z-index: 50; border: 2px solid #ffcc80; box-shadow: 0 0 10px #ffcc80; }
+        .poop-steam { position: absolute; width: 5px; height: 20px; background: rgba(255,255,255,0.3); left: 8px; top: -15px; filter: blur(3px); animation: steam 2s infinite; }
+        @keyframes steam { 0% { opacity: 0; transform: translateY(0); } 50% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+        .squashed { transform: scaleY(0.2) scaleX(2.5); opacity: 0.8; background: #5d4037; box-shadow: none; border: none; }
+        .gas-cloud { position: absolute; width: 60px; height: 60px; background: rgba(50, 255, 50, 0.4); border-radius: 50%; filter: blur(20px); animation: fadeUp 2s forwards; z-index: 30; }
+        @keyframes fadeUp { to { transform: translateY(-100px) scale(2); opacity: 0; } }
+        .lights-out .window { background: #000 !important; box-shadow: none !important; }
+        #inside-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); z-index: 9000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .inside-char { width: 200px; height: auto; border: 2px solid #555; border-radius: 10px; }
+        .inside-text { color: #ffcc80; font-size: 22px; margin-top: 20px; text-align: center; }
+    </style>
+    </head>
+    <body>
+    <div id="night-sky"><div id="stars-container"></div></div>
+    <div id="start-screen"><h1 style="text-shadow: 0 0 10px white;">GECEKONDU SİMÜLATÖRÜ</h1><button id="start-btn">OYUNU BAŞLAT</button></div>
+    <div class="info-box"><span class="key">Oklar</span> Yürü <span class="key">E</span> Etkileşim <span class="key">X</span> Sıç <span class="key">F</span> Osur</div>
+    <div class="skyline" id="skyline"></div><div class="ground"></div>
+    <div class="shanty-house"><div class="shanty-chimney"></div><div class="shanty-roof"></div><div class="shanty-window"></div><div class="shanty-door"></div></div>
+    <div id="car"><div class="car-top"><div class="car-window-area" id="driver-seat"></div></div><div class="car-body"><div class="headlight-beam" id="beam"></div></div><div class="wheel w1" id="w1"></div><div class="wheel w2" id="w2"></div></div>
+    <div id="player"><img src="https://i.hizliresim.com/85depzx.png" onerror="this.src='https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'" class="head-img" id="player-head"><div class="p-body" id="p-body"></div><div class="p-legs" id="p-legs"><div class="p-leg"></div><div class="p-leg"></div></div></div>
+    <div id="inside-screen"><img src="https://i.hizliresim.com/5q485xn.png" class="inside-char"><div class="inside-text">Evim güzel evim...<br><span style="font-size: 16px; color: #888;">(Çıkmak için E'ye bas)</span></div></div>
+    <script>
+        const DEFAULT_HEAD_URL = "https://i.hizliresim.com/85depzx.png"; const POOPING_HEAD_URL = "https://i.hizliresim.com/ov9uik2.png"; const DRIVING_HEAD_URL = "https://i.hizliresim.com/5q485xn.png";
+        const starsContainer = document.getElementById('stars-container');
+        for(let i=0; i<150; i++){ let s = document.createElement('div'); s.className = 'star'; let size = Math.random()*3; s.style.width = size + 'px'; s.style.height = size + 'px'; s.style.top = Math.random()*80 + '%'; s.style.left = Math.random()*100 + '%'; s.style.animationDelay = Math.random()*5 + 's'; starsContainer.appendChild(s); }
+        const skyline = document.getElementById('skyline'); const buildings = [];
+        for(let i=0; i<20; i++){ let d = document.createElement('div'); d.className = 'building'; d.style.height = Math.random()*50+30+'%'; for(let j=0; j<8; j++){ let w = document.createElement('div'); w.className='window'; w.style.top=Math.random()*90+'%'; w.style.left=Math.random()*70+'%'; if(Math.random()>0.7) d.appendChild(w); } skyline.appendChild(d); buildings.push(d); }
+        const player = document.getElementById('player'); const pHead = document.getElementById('player-head'); const car = document.getElementById('car'); const beam = document.getElementById('beam'); const insideScreen = document.getElementById('inside-screen'); const startBtn = document.getElementById('start-btn'); const startScreen = document.getElementById('start-screen');
+        let px = 350, py = 0, vy = 0; let cx = 600; let driving = false, crouching = false, jumping = false, insideHouse = false; let gameActive = false; let audioCtx; let poops = []; const keys = {};
+        startBtn.addEventListener('click', () => { startScreen.style.display = 'none'; gameActive = true; try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch(e) {} });
+        function playSound(type) { if(!audioCtx) return; const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain(); osc.connect(gainNode); gainNode.connect(audioCtx.destination); if (type === 'fart') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.5); gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); osc.start(); osc.stop(audioCtx.currentTime + 0.5); } else if (type === 'poop') { osc.type = 'triangle'; osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.1); gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15); osc.start(); osc.stop(audioCtx.currentTime + 0.15); } }
+        window.addEventListener('keydown', e => { if(!gameActive || e.repeat) return; keys[e.key] = true; if(insideHouse) { if(e.key.toLowerCase() === 'e') toggleHouse(); return; } if(!driving) { if(e.key === 'ArrowUp' && !jumping) { vy = 12; jumping = true; } if(e.key.toLowerCase() === 'x') { crouching = true; player.classList.add('crouch'); pHead.src = POOPING_HEAD_URL; doPoop(); } if(e.key.toLowerCase() === 'f') doFart(); if(e.key.toLowerCase() === 'e') checkInteraction(); } else { if(e.key.toLowerCase() === 'e') toggleCar(); } });
+        window.addEventListener('keyup', e => { keys[e.key] = false; if(e.key.toLowerCase() === 'x') { crouching = false; player.classList.remove('crouch'); pHead.src = DEFAULT_HEAD_URL; } });
+        function checkInteraction() { if(Math.abs(px - cx - 100) < 120) toggleCar(); else if(px > 100 && px < 300) toggleHouse(); }
+        function toggleHouse() { insideHouse = !insideHouse; insideScreen.style.display = insideHouse ? 'flex' : 'none'; }
+        function toggleCar() { driving = !driving; if(driving) { document.getElementById('p-body').classList.add('hidden-body'); document.getElementById('p-legs').classList.add('hidden-body'); pHead.src = DRIVING_HEAD_URL; document.getElementById('driver-seat').appendChild(pHead); beam.style.display = 'block'; player.style.display = 'none'; } else { document.getElementById('p-body').classList.remove('hidden-body'); document.getElementById('p-legs').classList.remove('hidden-body'); pHead.src = DEFAULT_HEAD_URL; player.prepend(pHead); beam.style.display = 'none'; player.style.display = 'flex'; px = cx + 80; py = 0; vy = 0; player.style.left = px + 'px'; } }
+        function doFart() { playSound('fart'); const g = document.createElement('div'); g.className='gas-cloud'; g.style.left = px + 'px'; g.style.bottom = (140+py)+'px'; document.body.appendChild(g); setTimeout(()=>g.remove(), 2000); document.getElementById('night-sky').style.opacity = '1'; buildings.forEach(b => b.classList.add('lights-out')); setTimeout(() => buildings.forEach(b => b.classList.remove('lights-out')), 500); }
+        function doPoop() { playSound('poop'); const p = document.createElement('div'); p.className = 'poop-pile'; const s = document.createElement('div'); s.className = 'poop-steam'; p.appendChild(s); let poopX = px + 12; p.style.left = poopX + 'px'; document.body.appendChild(p); poops.push({el:p, x:poopX, squashed:false}); if(poops.length > 20) poops.shift().el.remove(); }
+        function loop() { if(!gameActive) { requestAnimationFrame(loop); return; } if(!insideHouse) { if(!driving) { if(keys['ArrowRight']) { px += 4; player.style.transform = 'scaleX(1)'; } if(keys['ArrowLeft']) { px -= 4; player.style.transform = 'scaleX(-1)'; } py += vy; if(py > 0) vy -= 0.6; else { py = 0; vy = 0; jumping = false; } if(px < 0) px = 0; if(px > window.innerWidth - 50) px = window.innerWidth - 50; player.style.left = px + 'px'; player.style.bottom = (115 + py) + 'px'; } else { let move = 0; if(keys['ArrowRight']) { cx += 8; move=1; car.style.transform = 'scaleX(1)'; } if(keys['ArrowLeft']) { cx -= 8; move=-1; car.style.transform = 'scaleX(-1)'; } if(move !== 0) { document.querySelectorAll('.wheel').forEach(w=>w.classList.add('spinning')); } else { document.querySelectorAll('.wheel').forEach(w=>w.classList.remove('spinning')); } if(cx < -150) cx = -150; if(cx > window.innerWidth - 100) cx = window.innerWidth - 100; car.style.left = cx + 'px'; poops.forEach(obj => { if(!obj.squashed && obj.x > cx+40 && obj.x < cx+200) { obj.el.classList.add('squashed'); obj.squashed = true; } }); } } requestAnimationFrame(loop); } loop();
+    <\/script>
+    </body>
+    </html>
+    `;
+
+    // --- VİDEO VERİTABANI ---
+    const videos = [
+        { id: 'jNQXAC9IVRw', title: 'Me at the zoo (2005)' },
+        { id: '9bZkp7q19f0', title: 'Gangnam Style' },
+        { id: 'dQw4w9WgXcQ', title: 'Rick Roll' },
+        { id: 'ALZHF5UqnU4', title: 'Marshmello - Alone' },
+        { id: 'kJQP7kiw5Fk', title: 'Despacito' },
+        { id: 'L_jWHffIx5E', title: 'Smash Mouth - All Star' }
+    ];
+
+    // --- SNAKE GAME ENGINE ---
+    class SnakeGame {
+        constructor() {
+            this.canvas = null; this.ctx = null; this.interval = null;
+            this.gridSize = 15; this.tileCount = 20;
+            this.snake = []; this.food = {}; this.dx = 0; this.dy = 0;
+            this.score = 0; this.isRunning = false; this.isGameOver = false;
+            this.handleKey = this.handleKey.bind(this);
+        }
+
+        init() {
+            this.canvas = document.getElementById('snakeCanvas');
+            if(!this.canvas) return;
+            this.ctx = this.canvas.getContext('2d');
+            this.tileCount = this.canvas.width / this.gridSize;
+            this.reset(); this.draw();
+            document.addEventListener('keydown', this.handleKey);
+        }
+
+        reset() {
+            this.snake = [{x: 10, y: 10}, {x:9, y:10}, {x:8, y:10}];
+            this.score = 0; this.dx = 1; this.dy = 0;
+            this.isRunning = false; this.isGameOver = false;
+            this.placeFood();
+        }
+
+        destroy() {
+            if (this.interval) clearInterval(this.interval);
+            document.removeEventListener('keydown', this.handleKey);
+        }
+
+        placeFood() {
+            this.food = { x: Math.floor(Math.random() * this.tileCount), y: Math.floor(Math.random() * this.tileCount) };
+        }
+
+        handleKey(e) {
+            const win = document.getElementById('win-snake');
+            if(!win || win.style.display === 'none') return;
+            if(!this.isRunning && !this.isGameOver) {
+                this.isRunning = true; this.interval = setInterval(() => this.loop(), 100);
+            }
+            if(this.isGameOver && e.key.toLowerCase() === 'r') {
+                this.reset(); this.draw(); return;
+            }
+            switch(e.key) {
+                case 'ArrowUp': if(this.dy !== 1) { this.dx=0; this.dy=-1; } break;
+                case 'ArrowDown': if(this.dy !== -1) { this.dx=0; this.dy=1; } break;
+                case 'ArrowLeft': if(this.dx !== 1) { this.dx=-1; this.dy=0; } break;
+                case 'ArrowRight': if(this.dx !== -1) { this.dx=1; this.dy=0; } break;
+            }
+        }
+
+        loop() {
+            const head = { x: this.snake[0].x + this.dx, y: this.snake[0].y + this.dy };
+            if(head.x < 0) head.x = this.tileCount - 1; if(head.x >= this.tileCount) head.x = 0;
+            if(head.y < 0) head.y = this.tileCount - 1; if(head.y >= this.tileCount) head.y = 0;
+            for(let i = 0; i < this.snake.length; i++) { if(head.x === this.snake[i].x && head.y === this.snake[i].y) { this.gameOver(); return; } }
+            this.snake.unshift(head);
+            if(head.x === this.food.x && head.y === this.food.y) { this.score += 10; this.placeFood(); } else { this.snake.pop(); }
+            this.draw();
+        }
+
+        gameOver() { this.isRunning = false; this.isGameOver = true; clearInterval(this.interval); this.draw(); }
+
+        draw() {
+            this.ctx.fillStyle = '#9BB825'; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = '#485223';
+            let fx = this.food.x * this.gridSize + this.gridSize/2;
+            let fy = this.food.y * this.gridSize + this.gridSize/2;
+            this.ctx.beginPath(); this.ctx.arc(fx, fy, this.gridSize/2 - 2, 0, Math.PI*2); this.ctx.fill();
+            for(let part of this.snake) { this.ctx.fillStyle = 'black'; this.ctx.fillRect(part.x * this.gridSize, part.y * this.gridSize, this.gridSize - 1, this.gridSize - 1); }
+            this.ctx.fillStyle = 'black'; this.ctx.font = '14px Courier New'; this.ctx.fillText("SKOR: " + this.score, 5, 15);
+            if(!this.isRunning && !this.isGameOver) { this.ctx.fillText("BAŞLA: Tuşa Bas", 90, 145); }
+            if(this.isGameOver) { this.ctx.fillText("OYUN BİTTİ", 110, 140); this.ctx.fillText("'R' = Tekrar", 100, 160); }
+        }
+    }
+
+
+    // --- İŞLETİM SİSTEMİ ÇEKİRDEĞİ ---
+    class OperatingSystem {
+        constructor() {
+            this.zIndex = 100;
+            this.windows = {};
+            this.snakeInstance = null;
+            this.initBoot();
+            this.startClock();
+        }
+
+        initBoot() {
+            setTimeout(() => {
+                document.getElementById('boot-screen').style.display = 'none';
+                document.getElementById('desktop').style.display = 'block';
+                document.getElementById('desktop').addEventListener('click', (e) => {
+                    if (!e.target.closest('#start-menu') && !e.target.closest('#start-btn')) {
+                        document.getElementById('start-menu').style.display = 'none';
+                        document.getElementById('start-btn').classList.remove('active');
+                    }
+                });
+            }, 2000);
+        }
+
+        startClock() {
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }, 1000);
+        }
+
+        toggleStartMenu() {
+            const menu = document.getElementById('start-menu');
+            const btn = document.getElementById('start-btn');
+            if (menu.style.display === 'flex') {
+                menu.style.display = 'none';
+                btn.classList.remove('active');
+            } else {
+                menu.style.display = 'flex';
+                this.zIndex++;
+                menu.style.zIndex = this.zIndex + 999;
+                btn.classList.add('active');
+            }
+        }
+
+        triggerBSOD() {
+            document.getElementById('bsod').style.display = 'block';
+        }
+
+        openApp(appId) {
+            if (this.windows[appId]) {
+                this.focusWindow(appId);
+                return;
+            }
+
+            const win = document.createElement('div');
+            win.className = 'window outset';
+            win.id = `win-${appId}`;
+            
+            const offset = Object.keys(this.windows).length * 25;
+            win.style.left = (50 + offset) + 'px';
+            win.style.top = (30 + offset) + 'px';
+            win.style.zIndex = ++this.zIndex;
+
+            win.dataset.restoredWidth = ''; win.dataset.restoredHeight = '';
+            win.dataset.restoredLeft = ''; win.dataset.restoredTop = '';
+
+            let title = '', width = '400px', height = '300px', content = '';
+
+            switch(appId) {
+                case 'gecekondu':
+                    title = 'Gecekondu Simülatörü 2000';
+                    width = '800px'; height = '500px';
+                    // Blob tekniği ile oyunu Iframe içine gömüyoruz
+                    const blob = new Blob([GECEKONDU_SOURCE_CODE], {type: 'text/html'});
+                    const url = URL.createObjectURL(blob);
+                    content = `<iframe src="${url}" style="width:100%; height:100%; border:none; background:black;"></iframe>`;
+                    break;
+                case 'retrotube':
+                    title = 'RetroTube Player';
+                    width = '600px'; height = '450px';
+                    content = this.getRetroTubeHTML();
+                    break;
+                case 'notepad':
+                    title = 'Not Defteri';
+                    const savedNote = localStorage.getItem('retro_note') || '';
+                    content = `<textarea id="notepad-area" oninput="localStorage.setItem('retro_note', this.value)" 
+                        style="width:100%; height:100%; resize:none; border:none; padding:5px; font-family:'Courier New'; outline:none; font-size:14px;">${savedNote}</textarea>`;
+                    break;
+                case 'settings':
+                    title = 'Denetim Masası';
+                    width = '300px'; height = '250px';
+                    content = `
+                        <div style="padding:20px; text-align:center; background:#eee; height:100%; display:flex; flex-direction:column; gap:10px;">
+                            <p><strong>Görüntü Ayarları</strong></p>
+                            <button onclick="document.body.classList.toggle('crt-on')" class="start-btn" style="width:100%; justify-content:center;">📺 CRT Efekti Aç/Kapa</button>
+                            <hr style="width:100%; border:1px inset">
+                            <p><strong>Sistem</strong></p>
+                            <button onclick="os.triggerBSOD()" class="start-btn" style="width:100%; justify-content:center; color:red;">💣 Çökert</button>
+                            <div style="flex:1"></div>
+                            <p style="font-size:10px; color:#666;">RetroOS v2.1 Pro</p>
+                        </div>`;
+                    break;
+                case 'snake':
+                    title = 'Yılan Oyunu';
+                    width = '320px'; height = '365px';
+                    content = `<div style="background:silver; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;">
+                        <canvas id="snakeCanvas" width="300" height="300"></canvas>
+                        <div style="font-size:11px; font-family:'Tahoma'; color:#333;">Yön Tuşları: Hareket | R: Yeniden</div>
+                    </div>`;
+                    break;
+            }
+
+            win.style.width = width;
+            win.style.height = height;
+            win.dataset.restoredWidth = width;
+            win.dataset.restoredHeight = height;
+
+            win.innerHTML = `
+                <div class="title-bar" id="title-${appId}" onmousedown="os.startDrag(event, '${appId}')">
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <span>${title}</span>
+                    </div>
+                    <div class="title-bar-controls">
+                        <button onclick="os.minimizeWindow('${appId}')">_</button>
+                        <button onclick="os.maximizeWindow('${appId}')">□</button>
+                        <button onclick="os.closeApp('${appId}')">X</button>
+                    </div>
+                </div>
+                <div class="window-content inset">${content}</div>
+            `;
+
+            document.getElementById('desktop').appendChild(win);
+            this.windows[appId] = win;
+            this.addTaskbarItem(appId, title);
+
+            if(appId === 'retrotube') this.renderRetroGrid();
+            if(appId === 'snake') {
+                this.snakeInstance = new SnakeGame();
+                setTimeout(() => this.snakeInstance.init(), 50);
+            }
+
+            win.onmousedown = () => this.focusWindow(appId);
+            this.focusWindow(appId);
+        }
+
+        closeApp(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            if(win) win.remove();
+            delete this.windows[appId];
+            
+            const task = document.getElementById(`task-${appId}`);
+            if(task) task.remove();
+
+            if(appId === 'snake' && this.snakeInstance) {
+                this.snakeInstance.destroy();
+                this.snakeInstance = null;
+            }
+        }
+
+        focusWindow(appId) {
+            document.querySelectorAll('.title-bar').forEach(el => el.classList.add('inactive'));
+            const win = document.getElementById(`win-${appId}`);
+            if(win) {
+                win.style.zIndex = ++this.zIndex;
+                win.style.display = 'flex';
+                const titleBar = win.querySelector('.title-bar');
+                if(titleBar) titleBar.classList.remove('inactive');
+            }
+            document.querySelectorAll('.task-item').forEach(el => el.classList.remove('active'));
+            const task = document.getElementById(`task-${appId}`);
+            if(task) task.classList.add('active');
+        }
+
+        addTaskbarItem(appId, title) {
+            const task = document.createElement('div');
+            task.className = 'task-item active';
+            task.id = `task-${appId}`;
+            task.innerHTML = `<span>${title}</span>`;
+            task.onclick = () => {
+                const win = document.getElementById(`win-${appId}`);
+                if(win.style.display === 'none') {
+                    this.focusWindow(appId);
+                } else if (win.querySelector('.title-bar').classList.contains('inactive')) {
+                    this.focusWindow(appId);
+                } else {
+                    this.minimizeWindow(appId);
+                }
+            };
+            document.getElementById('task-list').appendChild(task);
+        }
+
+        minimizeWindow(appId) {
+            document.getElementById(`win-${appId}`).style.display = 'none';
+            document.getElementById(`task-${appId}`).classList.remove('active');
+        }
+        
+        maximizeWindow(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            if(win.style.width === '100%') {
+                win.style.width = win.dataset.restoredWidth || '400px';
+                win.style.height = win.dataset.restoredHeight || '300px';
+                win.style.top = win.dataset.restoredTop || '50px';
+                win.style.left = win.dataset.restoredLeft || '50px';
+            } else {
+                win.dataset.restoredWidth = win.style.width;
+                win.dataset.restoredHeight = win.style.height;
+                win.dataset.restoredTop = win.style.top;
+                win.dataset.restoredLeft = win.style.left;
+                win.style.width = '100%'; 
+                win.style.height = 'calc(100% - 34px)'; 
+                win.style.top = '0'; 
+                win.style.left = '0';
+            }
+        }
+
+        startDrag(e, appId) {
+            if(e.target.tagName === 'BUTTON') return;
+            e.preventDefault();
+            this.focusWindow(appId);
+            const win = this.windows[appId];
+            if(win.style.width === '100%') return;
+            let startX = e.clientX; let startY = e.clientY;
+            let startLeft = win.offsetLeft; let startTop = win.offsetTop;
+            const onMouseMove = (ev) => {
+                let dx = ev.clientX - startX; let dy = ev.clientY - startY;
+                win.style.left = `${startLeft + dx}px`;
+                win.style.top = `${startTop + dy}px`;
+            };
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        }
+
+        getRetroTubeHTML() {
+            return `
+                <div class="app-retro" style="display:flex; flex-direction:column; height:100%; background:white;">
+                    <div class="app-header" style="padding:5px; background:#eee; border-bottom:1px solid #999; display:flex; gap:5px;">
+                        <button onclick="os.renderRetroGrid()" style="cursor:pointer; font-weight:bold;">🏠 Ana Sayfa</button>
+                        <input type="text" id="custom-vid-input" placeholder="Video ID veya Link..." style="flex:1;">
+                        <button onclick="os.playCustomVideo()" style="cursor:pointer;">Git</button>
+                    </div>
+                    <div id="retro-grid" class="app-grid"></div>
+                    <div id="retro-player" style="display:none; height:100%; background:black; flex-direction:column;">
+                        <div id="iframe-holder" style="flex:1;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        renderRetroGrid() {
+            const grid = document.getElementById('retro-grid');
+            const player = document.getElementById('retro-player');
+            const holder = document.getElementById('iframe-holder');
+            if(!grid) return;
+            holder.innerHTML = '';
+            player.style.display = 'none';
+            grid.style.display = 'grid';
+            grid.innerHTML = '';
+            videos.forEach(v => {
+                const el = document.createElement('div');
+                el.className = 'vid-item';
+                el.onclick = () => this.playVideo(v.id);
+                el.innerHTML = `<img src="https://img.youtube.com/vi/${v.id}/mqdefault.jpg"><div style="margin-top:2px;">${v.title}</div>`;
+                grid.appendChild(el);
+            });
+        }
+
+        playVideo(id) {
+            const grid = document.getElementById('retro-grid');
+            const player = document.getElementById('retro-player');
+            const holder = document.getElementById('iframe-holder');
+            grid.style.display = 'none';
+            player.style.display = 'flex';
+            holder.innerHTML = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1" style="width:100%; height:100%; border:none;" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        }
+
+        playCustomVideo() {
+            const input = document.getElementById('custom-vid-input').value;
+            let vidId = input;
+            if(input.includes('v=')) vidId = input.split('v=')[1].split('&')[0];
+            else if(input.includes('youtu.be/')) vidId = input.split('youtu.be/')[1];
+            if(vidId.length > 5) this.playVideo(vidId);
+            else alert("Geçersiz Video ID!");
+        }
+    }
+
+    const os = new OperatingSystem();
+
+</script>
+</body>
+</html>
