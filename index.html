@@ -225,10 +225,24 @@
         .track-item:hover { background: #003300; }
         .track-item.playing { color: #fff; background: #005500; }
 
-        /* Terminal Style (YENİ EKLENDİ) */
+        /* Terminal Style */
         .terminal-container { background: black; color: #0f0; font-family: 'Courier New', monospace; padding: 5px; height: 100%; overflow-y: auto; font-size: 12px; }
         .terminal-input { background: transparent; border: none; color: #0f0; font-family: 'Courier New', monospace; width: 80%; outline: none; }
+
+        /* --- MAYIN TARLASI STİLLERİ (YENİ) --- */
+        .mine-header { background: #c0c0c0; border: 2px inset #fff; padding: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .mine-lcd { background: black; color: red; font-family: 'Courier New', monospace; font-size: 20px; padding: 2px 5px; border: 1px inset #fff; width: 50px; text-align: center; }
+        .mine-face { width: 26px; height: 26px; background: #c0c0c0; border: 2px outset #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
+        .mine-face:active { border-style: inset; }
+        .mine-grid { display: grid; background: #808080; border: 3px inset #fff; width: fit-content; margin: 0 auto; }
+        .mine-cell { width: 20px; height: 20px; background: #c0c0c0; border: 2px outset #fff; text-align: center; line-height: 18px; font-size: 12px; font-weight: bold; cursor: default; }
+        .mine-cell.pressed { border: 1px solid #808080; border-right: none; border-bottom: none; background: #c0c0c0; padding-top: 1px; padding-left: 1px; }
+        .mine-cell.flagged { color: red; }
         
+        /* Renkler */
+        .c1 { color: blue; } .c2 { color: green; } .c3 { color: red; } .c4 { color: darkblue; }
+        .c5 { color: darkred; } .c6 { color: teal; } .c7 { color: black; } .c8 { color: gray; }
+
     </style>
 </head>
 <body>
@@ -246,11 +260,11 @@
     </div>
 
     <div id="boot-screen">
-        <div>RETRO-BIOS v3.1 Ultimate Pro (C) 2025 AI Corp.</div>
+        <div>RETRO-BIOS v3.2 Ultimate Pro (C) 2025 AI Corp.</div>
         <div>Main Processor: Quantum Core 256-bit</div>
         <div>Memory Test: 256000K OK</div>
         <div>Detecting HDD Primary Master... QUANTUM FIREBALL XL</div>
-        <div>Detecting Sound Card... SOUND BLASTER 16</div>
+        <div>Detecting Sound Card... SOUND BLASTER 16 (Enabled)</div>
         <div style="margin-top: 20px;">Booting RetroOS Ultimate... <span class="cursor">_</span></div>
     </div>
 
@@ -298,6 +312,11 @@
                 <div class="ico-img">⚡</div>
                 <span>WinAmp</span>
             </div>
+            <div class="desktop-icon" style="top:20px; left:220px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('minesweeper')">
+                <div class="ico-img">💣</div>
+                <span>Mayın Tarlası</span>
+            </div>
+            
             <div class="desktop-icon" style="top:380px; left:20px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('browser')">
                 <div class="ico-img">🌍</div>
                 <span>Explorer</span>
@@ -328,6 +347,7 @@
                     <div class="start-item" onclick="os.openApp('calc'); os.toggleStartMenu()"><span>🧮</span> Hesap Makinesi</div>
                     <div class="start-item" onclick="os.openApp('gecekondu'); os.toggleStartMenu()"><span>🏚️</span> Gecekondu Sim</div>
                     <div class="start-item" onclick="os.openApp('snake'); os.toggleStartMenu()"><span>🐍</span> Yılan Oyunu</div>
+                    <div class="start-item" onclick="os.openApp('minesweeper'); os.toggleStartMenu()"><span>💣</span> Mayın Tarlası</div>
                     <div class="start-divider"></div>
                     <div class="start-item" onclick="os.openApp('settings'); os.toggleStartMenu()"><span>⚙️</span> Ayarlar</div>
                     <div class="start-item" onclick="os.shutdown()"><span>🛑</span> Bilgisayarı Kapat...</div>
@@ -515,6 +535,7 @@
     { id: 'rog8ou-ZepE', title: 'Vanilla Ice - Ice Ice Baby' },
     { id: 'XfR9iY5y94s', title: 'Men At Work - Down Under' }
 ];
+    
     const tracks = [
         { title: "Mustafa Sandal - Aya Benzer", duration: "3:56" },
         { title: "Sandstorm - Darude", duration: "3:45" },
@@ -523,7 +544,7 @@
         { title: "Mirkelam - Her Gece", duration: "4:02" }
     ];
 
-    // --- SNAKE GAME ENGINE (Skor Kayıtlı) ---
+    // --- SNAKE GAME ENGINE ---
     class SnakeGame {
         constructor() {
             this.canvas = null; this.ctx = null; this.interval = null;
@@ -631,6 +652,12 @@
             // WinAmp Değişkenleri
             this.ampInterval = null;
 
+            // Ses Sistemi
+            this.audioCtx = null;
+
+            // Mayın Tarlası
+            this.mineState = null;
+
             // İkon Sürükleme
             this.iconDrag = null;
             
@@ -639,12 +666,84 @@
             this.initContextMenu();
         }
 
+        // --- SES EFEKTLERİ (YENİ) ---
+        initAudio() {
+            if(!this.audioCtx) {
+                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if(this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+        }
+
+        playSystemSound(type) {
+            this.initAudio();
+            const osc = this.audioCtx.createOscillator();
+            const gainNode = this.audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(this.audioCtx.destination);
+
+            const now = this.audioCtx.currentTime;
+
+            if (type === 'click') {
+                // Kısa Tık Sesi
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'error') {
+                // Windows Hata Sesi (Taklit)
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'startup') {
+                // Açılış Akoru
+                this.playNote(261.63, now, 0.5); // C4
+                this.playNote(329.63, now + 0.1, 0.5); // E4
+                this.playNote(392.00, now + 0.2, 1.0); // G4
+            } else if (type === 'open') {
+                // Pencere Açılış
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+                gainNode.gain.setValueAtTime(0.05, now);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
+        }
+
+        playNote(freq, time, dur) {
+            const o = this.audioCtx.createOscillator();
+            const g = this.audioCtx.createGain();
+            o.connect(g);
+            g.connect(this.audioCtx.destination);
+            o.type = 'sine';
+            o.frequency.value = freq;
+            g.gain.setValueAtTime(0.1, time);
+            g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+            o.start(time);
+            o.stop(time + dur);
+        }
+
         initBoot() {
             setTimeout(() => {
                 document.getElementById('boot-screen').style.display = 'none';
                 document.getElementById('desktop').style.display = 'block';
                 
-                // Global Tıklama Dinleyicisi (Menüleri kapatmak için)
+                // Kullanıcı etkileşimi sonrası ses çalmak için dinleyici
+                const firstClick = () => {
+                   this.playSystemSound('startup');
+                   document.removeEventListener('click', firstClick);
+                };
+                document.addEventListener('click', firstClick);
+                
+                // Global Tıklama Dinleyicisi
                 document.addEventListener('mousedown', (e) => {
                     // Start Menu
                     if (!e.target.closest('#start-menu') && !e.target.closest('#start-btn') && !e.target.closest('.task-item')) {
@@ -657,7 +756,6 @@
                     }
                 });
                 
-                // İkon sürükleme bitişi
                 document.addEventListener('mouseup', () => { this.iconDrag = null; });
                 document.addEventListener('mousemove', (e) => this.handleIconDrag(e));
 
@@ -669,7 +767,6 @@
             const menu = document.getElementById('context-menu');
             desktop.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                // Taskbar veya pencere üzerinde açılmasın
                 if(e.target.closest('.window') || e.target.closest('#taskbar') || e.target.closest('.desktop-icon')) return;
                 
                 menu.style.display = 'block';
@@ -677,6 +774,7 @@
                 menu.style.top = e.clientY + 'px';
                 this.zIndex++;
                 menu.style.zIndex = this.zIndex + 9999;
+                this.playSystemSound('click');
             });
         }
 
@@ -690,6 +788,7 @@
         toggleStartMenu() {
             const menu = document.getElementById('start-menu');
             const btn = document.getElementById('start-btn');
+            this.playSystemSound('click');
             if (menu.style.display === 'flex') {
                 menu.style.display = 'none';
                 btn.classList.remove('active');
@@ -702,6 +801,7 @@
         }
 
         triggerBSOD() {
+            this.playSystemSound('error');
             document.getElementById('bsod').style.display = 'block';
         }
 
@@ -709,6 +809,16 @@
             const overlay = document.getElementById('shutdown-overlay');
             document.getElementById('start-menu').style.display = 'none';
             overlay.style.opacity = '1';
+            // Shutdown sesi (pitch down)
+            if(this.audioCtx) {
+                const o = this.audioCtx.createOscillator();
+                const g = this.audioCtx.createGain();
+                o.connect(g); g.connect(this.audioCtx.destination);
+                o.frequency.setValueAtTime(200, this.audioCtx.currentTime);
+                o.frequency.exponentialRampToValueAtTime(10, this.audioCtx.currentTime + 1);
+                g.gain.setValueAtTime(0.2, this.audioCtx.currentTime);
+                o.start(); o.stop(this.audioCtx.currentTime+1);
+            }
             setTimeout(() => {
                 overlay.innerHTML = "<div style='color:#f00; font-family:Courier'>SYSTEM HALTED</div>";
             }, 3000);
@@ -728,9 +838,9 @@
             document.getElementById('context-menu').style.display = 'none';
         }
 
-        // --- İKON SÜRÜKLEME ---
         startIconDrag(e, el) {
-            if(e.button !== 0) return; // Sadece sol tık
+            if(e.button !== 0) return;
+            this.playSystemSound('click');
             this.iconDrag = {
                 el: el,
                 offX: e.clientX - el.offsetLeft,
@@ -748,12 +858,13 @@
             el.style.top = y + 'px';
         }
 
-        // --- PENCERE YÖNETİMİ ---
         openApp(appId) {
             if (this.windows[appId]) {
                 this.focusWindow(appId);
                 return;
             }
+
+            this.playSystemSound('open');
 
             const win = document.createElement('div');
             win.className = 'window outset';
@@ -803,13 +914,13 @@
                     content = `
                         <div style="padding:20px; text-align:center; background:#eee; height:100%; display:flex; flex-direction:column; gap:10px;">
                             <p><strong>Görüntü Ayarları</strong></p>
-                            <button onclick="document.body.classList.toggle('crt-on')" class="start-btn" style="width:100%; justify-content:center;">📺 CRT Efekti</button>
+                            <button onclick="document.body.classList.toggle('crt-on'); os.playSystemSound('click');" class="start-btn" style="width:100%; justify-content:center;">📺 CRT Efekti</button>
                             <button onclick="os.changeWallpaper()" class="start-btn" style="width:100%; justify-content:center;">🖼️ Rastgele Arkaplan</button>
                             <hr style="width:100%; border:1px inset">
                             <p><strong>Sistem</strong></p>
                             <button onclick="os.triggerBSOD()" class="start-btn" style="width:100%; justify-content:center; color:red;">💣 Çökert</button>
                             <div style="flex:1"></div>
-                            <p style="font-size:10px; color:#666;">RetroOS v3.1 Ultimate</p>
+                            <p style="font-size:10px; color:#666;">RetroOS v3.2 Ultimate</p>
                         </div>`;
                     break;
                 case 'snake':
@@ -855,7 +966,6 @@
                     break;
                 case 'trash':
                     title = 'Geri Dönüşüm Kutusu';
-                    // --- DÜZELTME & EKLEME: Sadece yazı yerine buton eklendi ---
                     content = `
                     <div style="padding:20px; text-align:center; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center;">
                         <div style="font-size:40px;">🗑️</div>
@@ -863,7 +973,6 @@
                         <button class="btn-win" onclick="os.emptyTrash()">Kutuyu Boşalt</button>
                     </div>`;
                     break;
-                // --- YENİ EKLENEN UYGULAMA: TERMINAL ---
                 case 'terminal':
                     title = 'MS-DOS İstemi';
                     width = '600px'; height = '400px';
@@ -878,6 +987,23 @@
                             <input type="text" id="term-in" class="terminal-input" autocomplete="off" onkeydown="os.handleTerminal(event)">
                         </div>
                     </div>`;
+                    break;
+                // --- MAYIN TARLASI HTML ---
+                case 'minesweeper':
+                    title = 'Mayın Tarlası';
+                    width = '250px'; height = '320px';
+                    content = `
+                    <div style="padding:5px; background:var(--win-gray); height:100%; display:flex; flex-direction:column;">
+                        <div class="mine-header">
+                            <div class="mine-lcd" id="mine-count">010</div>
+                            <div class="mine-face" onclick="os.initMinesweeper()">😊</div>
+                            <div class="mine-lcd" id="mine-timer">000</div>
+                        </div>
+                        <div style="flex:1; display:flex; justify-content:center; align-items:flex-start;">
+                            <div class="mine-grid" id="mine-grid"></div>
+                        </div>
+                    </div>
+                    `;
                     break;
             }
 
@@ -913,12 +1039,14 @@
             if(appId === 'paint') this.initPaint();
             if(appId === 'winamp') this.initWinamp();
             if(appId === 'terminal') setTimeout(() => document.getElementById('term-in').focus(), 100);
+            if(appId === 'minesweeper') this.initMinesweeper();
 
             win.onmousedown = () => this.focusWindow(appId);
             this.focusWindow(appId);
         }
 
         closeApp(appId) {
+            this.playSystemSound('click');
             const win = document.getElementById(`win-${appId}`);
             if(win) win.remove();
             delete this.windows[appId];
@@ -932,6 +1060,9 @@
             }
             if(appId === 'winamp' && this.ampInterval) {
                 clearInterval(this.ampInterval);
+            }
+            if(appId === 'minesweeper' && this.mineState) {
+                clearInterval(this.mineState.timerInterval);
             }
         }
 
@@ -955,6 +1086,7 @@
             task.id = `task-${appId}`;
             task.innerHTML = `<span>${title}</span>`;
             task.onclick = () => {
+                this.playSystemSound('click');
                 const win = document.getElementById(`win-${appId}`);
                 if(win.style.display === 'none') {
                     this.focusWindow(appId);
@@ -968,11 +1100,13 @@
         }
 
         minimizeWindow(appId) {
+            this.playSystemSound('click');
             document.getElementById(`win-${appId}`).style.display = 'none';
             document.getElementById(`task-${appId}`).classList.remove('active');
         }
         
         maximizeWindow(appId) {
+            this.playSystemSound('click');
             const win = document.getElementById(`win-${appId}`);
             if(win.style.width === '100%') {
                 win.style.width = win.dataset.restoredWidth;
@@ -1011,6 +1145,177 @@
             };
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
+        }
+
+        // --- MAYIN TARLASI LOGIC (YENİ) ---
+        initMinesweeper() {
+            const gridEl = document.getElementById('mine-grid');
+            if(!gridEl) return;
+            
+            // Ayarlar (Beginner)
+            const rows = 9; const cols = 9; const mineCount = 10;
+            
+            gridEl.style.gridTemplateColumns = `repeat(${cols}, 20px)`;
+            gridEl.innerHTML = '';
+            
+            // Oyun Durumu
+            this.mineState = {
+                rows, cols, mineCount,
+                grid: [],
+                gameOver: false,
+                firstClick: true,
+                flags: 0,
+                time: 0,
+                timerInterval: null
+            };
+
+            // Sayacı sıfırla
+            document.getElementById('mine-count').innerText = mineCount.toString().padStart(3, '0');
+            document.getElementById('mine-timer').innerText = "000";
+            if(this.mineState.timerInterval) clearInterval(this.mineState.timerInterval);
+            document.querySelector('.mine-face').innerText = '😊';
+
+            // Grid oluştur
+            for(let r=0; r<rows; r++) {
+                const rowArr = [];
+                for(let c=0; c<cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'mine-cell';
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    
+                    // Tıklama olayları
+                    cell.onmousedown = (e) => {
+                        if(this.mineState.gameOver) return;
+                        if(e.button === 0) document.querySelector('.mine-face').innerText = '😮';
+                    };
+                    cell.onmouseup = (e) => {
+                        if(this.mineState.gameOver) return;
+                        document.querySelector('.mine-face').innerText = '😊';
+                        if(e.button === 0) this.clickMineCell(r, c);
+                    };
+                    cell.oncontextmenu = (e) => {
+                        e.preventDefault();
+                        this.flagMineCell(r, c);
+                    };
+                    
+                    gridEl.appendChild(cell);
+                    rowArr.push({ isMine: false, revealed: false, flagged: false, count: 0, el: cell });
+                }
+                this.mineState.grid.push(rowArr);
+            }
+        }
+
+        placeMines(excludeR, excludeC) {
+            let placed = 0;
+            while(placed < this.mineState.mineCount) {
+                const r = Math.floor(Math.random() * this.mineState.rows);
+                const c = Math.floor(Math.random() * this.mineState.cols);
+                if((r !== excludeR || c !== excludeC) && !this.mineState.grid[r][c].isMine) {
+                    this.mineState.grid[r][c].isMine = true;
+                    placed++;
+                }
+            }
+            // Sayıları hesapla
+            for(let r=0; r<this.mineState.rows; r++) {
+                for(let c=0; c<this.mineState.cols; c++) {
+                    if(!this.mineState.grid[r][c].isMine) {
+                        let count = 0;
+                        for(let i=-1; i<=1; i++) {
+                            for(let j=-1; j<=1; j++) {
+                                const nr = r+i, nc = c+j;
+                                if(nr>=0 && nr<this.mineState.rows && nc>=0 && nc<this.mineState.cols && this.mineState.grid[nr][nc].isMine) count++;
+                            }
+                        }
+                        this.mineState.grid[r][c].count = count;
+                    }
+                }
+            }
+        }
+
+        clickMineCell(r, c) {
+            const cell = this.mineState.grid[r][c];
+            if(cell.revealed || cell.flagged || this.mineState.gameOver) return;
+
+            if(this.mineState.firstClick) {
+                this.placeMines(r, c);
+                this.mineState.firstClick = false;
+                this.mineState.timerInterval = setInterval(() => {
+                    this.mineState.time++;
+                    document.getElementById('mine-timer').innerText = Math.min(999, this.mineState.time).toString().padStart(3,'0');
+                }, 1000);
+            }
+
+            if(cell.isMine) {
+                // Game Over
+                this.mineState.gameOver = true;
+                clearInterval(this.mineState.timerInterval);
+                document.querySelector('.mine-face').innerText = '😵';
+                cell.el.style.background = 'red';
+                // Tüm mayınları göster
+                this.mineState.grid.forEach(row => row.forEach(c => {
+                    if(c.isMine) c.el.innerText = '💣';
+                }));
+                this.playSystemSound('error');
+            } else {
+                this.revealCell(r, c);
+                this.checkMineWin();
+            }
+        }
+
+        revealCell(r, c) {
+            const cell = this.mineState.grid[r][c];
+            if(cell.revealed || cell.flagged) return;
+            
+            cell.revealed = true;
+            cell.el.classList.add('pressed');
+            if(cell.count > 0) {
+                cell.el.innerText = cell.count;
+                cell.el.classList.add('c'+cell.count);
+            } else {
+                // Boşsa etrafını aç
+                for(let i=-1; i<=1; i++) {
+                    for(let j=-1; j<=1; j++) {
+                        const nr = r+i, nc = c+j;
+                        if(nr>=0 && nr<this.mineState.rows && nc>=0 && nc<this.mineState.cols) {
+                            this.revealCell(nr, nc);
+                        }
+                    }
+                }
+            }
+        }
+
+        flagMineCell(r, c) {
+            if(this.mineState.gameOver) return;
+            const cell = this.mineState.grid[r][c];
+            if(cell.revealed) return;
+
+            if(cell.flagged) {
+                cell.flagged = false;
+                cell.el.innerText = '';
+                cell.el.classList.remove('flagged');
+                this.mineState.flags--;
+            } else {
+                cell.flagged = true;
+                cell.el.innerText = '🚩';
+                cell.el.classList.add('flagged');
+                this.mineState.flags++;
+            }
+            document.getElementById('mine-count').innerText = (this.mineState.mineCount - this.mineState.flags).toString().padStart(3, '0');
+        }
+
+        checkMineWin() {
+            let revealedCount = 0;
+            this.mineState.grid.forEach(row => row.forEach(c => {
+                if(c.revealed) revealedCount++;
+            }));
+            const totalCells = this.mineState.rows * this.mineState.cols;
+            if(revealedCount === totalCells - this.mineState.mineCount) {
+                this.mineState.gameOver = true;
+                clearInterval(this.mineState.timerInterval);
+                document.querySelector('.mine-face').innerText = '😎';
+                this.playSystemSound('startup'); // Zafer sesi olarak startup'ı kullan
+            }
         }
 
         // --- HTML GENERATORS ---
@@ -1076,6 +1381,7 @@
                 <div class="file-list" style="flex:1; overflow-y:auto;">
                     <div class="file-item" ondblclick="os.openApp('notepad')">📄 notlar.txt</div>
                     <div class="file-item" ondblclick="os.openApp('gecekondu')">🎮 gecekondu.exe</div>
+                    <div class="file-item" ondblclick="os.openApp('minesweeper')">💣 winmine.exe</div>
                     <div class="file-item">📁 Windows</div>
                     <div class="file-item">📁 Program Files</div>
                     <div class="file-item" ondblclick="os.triggerBSOD()">⚠️ system32.dll</div>
@@ -1174,6 +1480,7 @@
             }, 100);
         }
         setPaintColor(el, color) {
+            this.playSystemSound('click');
             this.paintColor = color;
             this.paintCtx.strokeStyle = color;
             this.paintCtx.lineWidth = (color === 'white') ? 10 : 3;
@@ -1193,9 +1500,16 @@
         }
 
         // Calculator
-        calcIn(val) { document.getElementById('calc-disp').value += val; }
-        calcCl() { document.getElementById('calc-disp').value = ''; }
+        calcIn(val) { 
+            this.playSystemSound('click');
+            document.getElementById('calc-disp').value += val; 
+        }
+        calcCl() { 
+            this.playSystemSound('click');
+            document.getElementById('calc-disp').value = ''; 
+        }
         calcEq() { 
+            this.playSystemSound('click');
             try { 
                 document.getElementById('calc-disp').value = eval(document.getElementById('calc-disp').value); 
             } catch(e) { document.getElementById('calc-disp').value = 'Hata'; } 
@@ -1211,48 +1525,31 @@
             link.click();
         }
         
-        // Trash (YENİ EKLEME)
+        // Trash
         emptyTrash() {
-            // Basit bir ses efekti çalmaya çalış (tarayıcı izin verirse)
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.type = 'sawtooth';
-                osc.frequency.value = 100;
-                gain.gain.value = 0.1;
-                osc.start();
-                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.5);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-                osc.stop(audioCtx.currentTime + 0.5);
-            } catch(e) {}
-            
+            this.playSystemSound('click');
             document.getElementById('trash-text').innerText = "Geri dönüşüm kutusu zaten tertemiz!";
             setTimeout(() => {
                  document.getElementById('trash-text').innerText = "Geri dönüşüm kutusu boş.";
             }, 2000);
         }
 
-        // Terminal (YENİ EKLEME)
+        // Terminal
         handleTerminal(e) {
             if(e.key === 'Enter') {
                 const input = e.target.value.trim();
                 const outputDiv = document.getElementById('term-output');
                 
-                // Komutu yazdır
                 outputDiv.innerHTML += `<div>C:\\> ${input}</div>`;
                 
-                // Cevap ver
                 let response = "";
                 const cmd = input.toLowerCase();
                 
                 if(cmd === 'help') response = "KOMUTLAR: HELP, VER, DATE, CLS, DIR, ECHO, EXIT";
-                else if(cmd === 'ver') response = "RetroOS Ultimate [Sürüm 3.1.2025]";
+                else if(cmd === 'ver') response = "RetroOS Ultimate [Sürüm 3.2.2025]";
                 else if(cmd === 'date') response = new Date().toString();
                 else if(cmd === 'cls') { outputDiv.innerHTML = ""; e.target.value = ""; return; }
-                else if(cmd === 'dir') response = " <DIR> WINDOWS<br> <DIR> PROGRAM FILES<br> gecekondu.exe<br> notlar.txt<br> system32.dll";
+                else if(cmd === 'dir') response = " <DIR> WINDOWS<br> <DIR> PROGRAM FILES<br> gecekondu.exe<br> winmine.exe<br> notlar.txt<br> system32.dll";
                 else if(cmd.startsWith('echo ')) response = input.substring(5);
                 else if(cmd === 'exit') { this.closeApp('terminal'); return; }
                 else if(cmd === '') response = "";
@@ -1261,7 +1558,6 @@
                 if(response) outputDiv.innerHTML += `<div style="color:#ccc; margin-bottom:10px;">${response}</div>`;
                 
                 e.target.value = "";
-                // Scroll to bottom
                 const container = document.querySelector('.terminal-container');
                 container.scrollTop = container.scrollHeight;
             }
@@ -1279,6 +1575,7 @@
             }
         }
         playTrack(idx, el) {
+            this.playSystemSound('click');
             document.querySelectorAll('.track-item').forEach(t => t.classList.remove('playing'));
             if(el) el.classList.add('playing');
             else document.querySelectorAll('.track-item')[idx].classList.add('playing');
@@ -1287,6 +1584,7 @@
             this.startAmpVisualizer();
         }
         ampAction(act) {
+            this.playSystemSound('click');
             if(act === 'play') {
                 this.startAmpVisualizer();
                 document.getElementById('amp-status').innerText = "OYNATILIYOR...";
