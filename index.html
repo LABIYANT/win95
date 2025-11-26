@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RetroOS | Professional Edition</title>
+    <title>RetroOS | Ultimate Professional Edition</title>
     <style>
         /* --- SİSTEM GENELİ --- */
         :root {
@@ -27,22 +27,31 @@
         /* 3D Border Efektleri */
         .outset { border: 2px solid; border-color: #fff #000 #000 #fff; background: var(--win-gray); }
         .inset { border: 2px solid; border-color: #404040 #fff #fff #404040; background: #fff; }
+        .btn-win { border: 2px outset #fff; background: var(--win-gray); cursor: pointer; display: inline-block; padding: 2px 5px; font-size: 11px;}
+        .btn-win:active { border-style: inset; }
 
         /* --- BIOS BOOT EKRANI --- */
         #boot-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: black; color: #ccc; font-family: 'Courier New', monospace;
-            padding: 40px; z-index: 9999;
+            padding: 40px; z-index: 99999;
             display: flex; flex-direction: column; gap: 10px;
         }
         .cursor { animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0; } }
 
-        /* --- BSOD (Mavi Ekran) --- */
+        /* --- KAPANIŞ & BSOD --- */
+        #shutdown-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 11000; pointer-events: none;
+            opacity: 0; transition: opacity 2s;
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; font-family: 'Courier New';
+        }
+
         #bsod {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #0000AA; color: white; font-family: 'Courier New', monospace;
-            padding: 50px; z-index: 10000; font-weight: bold;
+            padding: 50px; z-index: 100000; font-weight: bold;
         }
 
         /* --- MASAÜSTÜ --- */
@@ -51,33 +60,47 @@
             background-color: var(--desktop-bg);
             position: relative;
             display: none;
+            background-size: cover;
+            background-position: center;
         }
+
+        /* --- SAĞ TIK MENÜSÜ --- */
+        #context-menu {
+            display: none; position: absolute; z-index: 9500;
+            width: 150px; background: var(--win-gray);
+            border: 2px outset #fff; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        }
+        .ctx-item {
+            padding: 5px 15px; font-size: 12px; cursor: pointer;
+            border-bottom: 1px solid transparent; color: black;
+        }
+        .ctx-item:hover { background: var(--win-blue); color: white; }
+        .ctx-divider { height: 1px; background: #888; margin: 2px 0; border-bottom: 1px solid #fff; }
 
         /* --- CRT EFEKT KATMANI --- */
         #crt-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
             background-size: 100% 2px, 3px 100%;
-            pointer-events: none; z-index: 5000;
+            pointer-events: none; z-index: 50000;
             opacity: 0; transition: opacity 0.5s;
         }
         .crt-on #crt-overlay { opacity: 1; }
 
         /* --- İKONLAR --- */
-        .icon-grid {
-            display: flex; flex-direction: column; flex-wrap: wrap; gap: 20px;
-            padding: 20px; height: 100%; align-content: flex-start;
-        }
         .desktop-icon {
-            width: 80px; display: flex; flex-direction: column; align-items: center;
+            width: 80px; position: absolute;
+            display: flex; flex-direction: column; align-items: center;
             color: white; cursor: pointer; text-align: center;
-            border: 1px solid transparent; padding: 2px;
+            border: 1px solid transparent; padding: 5px;
+            z-index: 1;
         }
+        .desktop-icon:hover { background: rgba(0,0,80,0.2); border: 1px dotted rgba(255,255,255,0.3); }
         .desktop-icon:active { border: 1px dotted white; background: rgba(0,0,80,0.5); }
         .desktop-icon .ico-img { 
             width: 32px; height: 32px; margin-bottom: 5px; font-size: 28px;
         }
-        .desktop-icon span { font-size: 11px; text-shadow: 1px 1px 1px black; }
+        .desktop-icon span { font-size: 11px; text-shadow: 1px 1px 1px black; background: rgba(0,0,0,0.2); border-radius: 3px; padding: 1px;}
 
         /* --- PENCERELER --- */
         .window {
@@ -85,13 +108,16 @@
             box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
             display: flex; flex-direction: column;
             min-width: 200px; min-height: 150px;
+            animation: popIn 0.2s ease-out;
         }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         
         .title-bar {
             background: linear-gradient(90deg, var(--win-blue), #1084d0); color: white;
             padding: 3px 4px; font-weight: bold; font-size: 12px;
             display: flex; justify-content: space-between; align-items: center;
             cursor: default;
+            user-select: none;
         }
         .title-bar.inactive { background: var(--win-dark-gray); }
 
@@ -146,19 +172,19 @@
 
         .clock-area {
             margin-left: auto; border: 2px inset #dfdfdf;
-            padding: 4px 10px; background: #eee; font-size: 11px; margin-right: 2px;
+            padding: 4px 10px; background: #eee; font-size: 11px; margin-right: 2px; min-width: 60px; text-align: center;
         }
 
         .task-item {
-            width: 150px; padding: 3px 5px; margin-right: 3px; height: 26px;
+            max-width: 150px; min-width: 80px; padding: 3px 5px; margin-right: 3px; height: 26px;
             background: var(--win-gray); border: 2px outset #fff;
             font-size: 11px; white-space: nowrap; overflow: hidden;
             text-overflow: ellipsis; cursor: pointer;
             display: flex; align-items: center; gap: 5px;
         }
-        .task-item.active { border-style: inset; background: #ddd; font-weight: bold;}
+        .task-item.active { border-style: inset; background: #e0e0e0; font-weight: bold;}
 
-        /* --- ÖZEL APP STİLLERİ --- */
+        /* --- APP STİLLERİ --- */
         
         /* RetroTube Grid */
         .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; padding: 10px; overflow-y: auto; background: white;}
@@ -166,22 +192,49 @@
         .vid-item:hover img { outline: 2px solid blue; }
         .vid-item img { width: 100%; height: 80px; object-fit: cover; background: black; }
         
-        /* Inputs */
-        input[type="text"] { border: 2px inset #ddd; padding: 3px; font-family: 'Tahoma'; }
-        
-        /* Snake Game Canvas */
+        /* Snake Game */
         #snakeCanvas { 
-            background: #9BB825; /* Nokia Green */
-            border: 4px solid #485223;
-            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.2);
-            image-rendering: pixelated;
+            background: #9BB825; border: 4px solid #485223;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.2); image-rendering: pixelated;
         }
 
+        /* Calculator */
+        .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; padding: 5px; height: 100%; }
+        .calc-btn { height: 100%; font-weight: bold; border: 1px outset #fff; background: var(--win-gray); cursor: pointer; }
+        .calc-btn:active { border-style: inset; }
+        .calc-display { grid-column: span 4; background: white; border: 2px inset #ddd; text-align: right; padding: 5px; font-family: 'Courier New'; font-size: 20px; margin-bottom: 5px; }
+
+        /* Paint */
+        .paint-toolbar { display: flex; gap: 5px; padding: 5px; background: var(--win-gray); border-bottom: 1px solid #888; }
+        .color-box { width: 20px; height: 20px; border: 2px inset #fff; cursor: pointer; }
+        .color-box.active { border: 2px solid black; }
+
+        /* Explorer */
+        .file-list { display: flex; flex-direction: column; background: white; height: 100%; padding: 5px; font-size: 12px; }
+        .file-item { display: flex; align-items: center; gap: 5px; padding: 2px; cursor: pointer; }
+        .file-item:hover { background: #000080; color: white; }
+
+        /* WinAmp Skin */
+        .amp-main { background: #222; color: #0f0; font-family: 'Courier New'; padding: 5px; height: 100%; display: flex; flex-direction: column; }
+        .amp-screen { background: #000; border: 2px inset #555; height: 60px; margin-bottom: 5px; padding: 5px; position: relative; overflow: hidden; }
+        .amp-visualizer { display: flex; align-items: flex-end; height: 100%; gap: 2px; }
+        .amp-bar { flex: 1; background: #0f0; opacity: 0.8; transition: height 0.1s; }
+        .amp-controls { display: flex; gap: 5px; justify-content: center; margin-bottom: 5px; }
+        .amp-playlist { background: #111; border: 2px inset #555; flex: 1; overflow-y: auto; color: #00ff00; font-size: 10px; padding: 2px; }
+        .track-item { cursor: pointer; padding: 2px; }
+        .track-item:hover { background: #003300; }
+        .track-item.playing { color: #fff; background: #005500; }
+
+        /* Terminal Style (YENİ EKLENDİ) */
+        .terminal-container { background: black; color: #0f0; font-family: 'Courier New', monospace; padding: 5px; height: 100%; overflow-y: auto; font-size: 12px; }
+        .terminal-input { background: transparent; border: none; color: #0f0; font-family: 'Courier New', monospace; width: 80%; outline: none; }
+        
     </style>
 </head>
 <body>
 
     <div id="crt-overlay"></div>
+    <div id="shutdown-overlay"></div>
 
     <div id="bsod" onclick="location.reload()">
         <p>A fatal exception 0E has occurred at 0028:C0011E36 in VXD VMM(01) + 00010E36.</p>
@@ -193,65 +246,91 @@
     </div>
 
     <div id="boot-screen">
-        <div>RETRO-BIOS v2.1 (C) 2025 AI Corp.</div>
-        <div>Main Processor: Quantum Core 128-bit</div>
-        <div>Memory Test: 64000K OK</div>
-        <div>Detecting HDD Primary Master... QUANTUM FIREBALL</div>
-        <div style="margin-top: 20px;">Booting RetroOS... <span class="cursor">_</span></div>
+        <div>RETRO-BIOS v3.1 Ultimate Pro (C) 2025 AI Corp.</div>
+        <div>Main Processor: Quantum Core 256-bit</div>
+        <div>Memory Test: 256000K OK</div>
+        <div>Detecting HDD Primary Master... QUANTUM FIREBALL XL</div>
+        <div>Detecting Sound Card... SOUND BLASTER 16</div>
+        <div style="margin-top: 20px;">Booting RetroOS Ultimate... <span class="cursor">_</span></div>
+    </div>
+
+    <div id="context-menu" class="outset">
+        <div class="ctx-item" onclick="os.refreshDesktop()">Yenile</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="os.openApp('settings')">Özellikler</div>
+        <div class="ctx-item" onclick="os.changeWallpaper()">Arkaplanı Değiştir</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="os.openApp('notepad')">Yeni Metin Belgesi</div>
     </div>
 
     <div id="desktop">
         
-        <div class="icon-grid">
-            <div class="desktop-icon" onclick="os.openApp('gecekondu')">
+        <div id="icon-container">
+            <div class="desktop-icon" style="top:20px; left:20px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('bilgisayarim')">
+                <div class="ico-img">💻</div>
+                <span>Bilgisayarım</span>
+            </div>
+            <div class="desktop-icon" style="top:110px; left:20px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('gecekondu')">
                 <div class="ico-img">🏚️</div>
                 <span>Gecekondu Sim</span>
             </div>
-            <div class="desktop-icon" onclick="os.openApp('retrotube')">
+            <div class="desktop-icon" style="top:200px; left:20px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('retrotube')">
                 <div class="ico-img">📺</div>
                 <span>RetroTube</span>
             </div>
-            <div class="desktop-icon" onclick="os.openApp('notepad')">
+            <div class="desktop-icon" style="top:290px; left:20px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('notepad')">
                 <div class="ico-img">📝</div>
                 <span>Not Defteri</span>
             </div>
-            <div class="desktop-icon" onclick="os.openApp('snake')">
+            <div class="desktop-icon" style="top:20px; left:120px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('paint')">
+                <div class="ico-img">🎨</div>
+                <span>RetroPaint</span>
+            </div>
+            <div class="desktop-icon" style="top:110px; left:120px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('calc')">
+                <div class="ico-img">🧮</div>
+                <span>Hesap Mak.</span>
+            </div>
+            <div class="desktop-icon" style="top:200px; left:120px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('snake')">
                 <div class="ico-img">🐍</div>
                 <span>Yılan Oyunu</span>
             </div>
-            <div class="desktop-icon" onclick="os.openApp('settings')">
-                <div class="ico-img">⚙️</div>
-                <span>Ayarlar</span>
+            <div class="desktop-icon" style="top:290px; left:120px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('winamp')">
+                <div class="ico-img">⚡</div>
+                <span>WinAmp</span>
             </div>
-            <div class="desktop-icon" onclick="os.triggerBSOD()">
-                <div class="ico-img">💣</div>
-                <span>Tehlike</span>
+            <div class="desktop-icon" style="top:380px; left:20px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('browser')">
+                <div class="ico-img">🌍</div>
+                <span>Explorer</span>
+            </div>
+             <div class="desktop-icon" style="top:380px; left:120px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('terminal')">
+                <div class="ico-img">📟</div>
+                <span>MS-DOS</span>
+            </div>
+            
+            <div class="desktop-icon" style="top:370px; right:20px;" onmousedown="os.startIconDrag(event, this)" ondblclick="os.openApp('trash')">
+                <div class="ico-img">🗑️</div>
+                <span>Geri Dönüşüm</span>
             </div>
         </div>
 
         <div id="start-menu" class="outset">
             <div style="display: flex;">
-                <div class="start-side-strip">RetroOS</div>
+                <div class="start-side-strip">RetroOS Ultimate</div>
                 <div style="flex:1; padding: 2px;">
-                    <div class="start-item" onclick="os.openApp('gecekondu'); os.toggleStartMenu()">
-                        <span>🏚️</span> Gecekondu Sim
-                    </div>
-                    <div class="start-item" onclick="os.openApp('retrotube'); os.toggleStartMenu()">
-                        <span>📺</span> RetroTube
-                    </div>
-                    <div class="start-item" onclick="os.openApp('notepad'); os.toggleStartMenu()">
-                        <span>📝</span> Not Defteri
-                    </div>
-                    <div class="start-item" onclick="os.openApp('snake'); os.toggleStartMenu()">
-                        <span>🐍</span> Yılan Oyunu
-                    </div>
-                    <div class="start-item" onclick="os.openApp('settings'); os.toggleStartMenu()">
-                        <span>⚙️</span> Ayarlar
-                    </div>
+                    <div class="start-item" onclick="os.openApp('bilgisayarim'); os.toggleStartMenu()"><span>💻</span> Bilgisayarım</div>
+                    <div class="start-item" onclick="os.openApp('retrotube'); os.toggleStartMenu()"><span>📺</span> RetroTube</div>
+                    <div class="start-item" onclick="os.openApp('winamp'); os.toggleStartMenu()"><span>⚡</span> WinAmp</div>
+                    <div class="start-item" onclick="os.openApp('browser'); os.toggleStartMenu()"><span>🌍</span> Explorer</div>
+                    <div class="start-item" onclick="os.openApp('terminal'); os.toggleStartMenu()"><span>📟</span> MS-DOS İstemi</div>
                     <div class="start-divider"></div>
-                    <div class="start-item" onclick="location.reload()">
-                        <span>🛑</span> Bilgisayarı Kapat
-                    </div>
+                    <div class="start-item" onclick="os.openApp('paint'); os.toggleStartMenu()"><span>🎨</span> Paint</div>
+                    <div class="start-item" onclick="os.openApp('notepad'); os.toggleStartMenu()"><span>📝</span> Not Defteri</div>
+                    <div class="start-item" onclick="os.openApp('calc'); os.toggleStartMenu()"><span>🧮</span> Hesap Makinesi</div>
+                    <div class="start-item" onclick="os.openApp('gecekondu'); os.toggleStartMenu()"><span>🏚️</span> Gecekondu Sim</div>
+                    <div class="start-item" onclick="os.openApp('snake'); os.toggleStartMenu()"><span>🐍</span> Yılan Oyunu</div>
+                    <div class="start-divider"></div>
+                    <div class="start-item" onclick="os.openApp('settings'); os.toggleStartMenu()"><span>⚙️</span> Ayarlar</div>
+                    <div class="start-item" onclick="os.shutdown()"><span>🛑</span> Bilgisayarı Kapat...</div>
                 </div>
             </div>
         </div>
@@ -267,8 +346,7 @@
     </div>
 
 <script>
-    // --- GECEKONDU OYUNU KAYNAK KODU (IFRAME İÇİN) ---
-    // Bu kod blob olarak pencere içine gömülecek
+    // --- GECEKONDU OYUNU KAYNAK KODU ---
     const GECEKONDU_SOURCE_CODE = `
     <!DOCTYPE html>
     <html lang="tr">
@@ -320,12 +398,14 @@
         #inside-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); z-index: 9000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         .inside-char { width: 200px; height: auto; border: 2px solid #555; border-radius: 10px; }
         .inside-text { color: #ffcc80; font-size: 22px; margin-top: 20px; text-align: center; }
+        #score-board { position:absolute; top: 10px; right: 10px; color: yellow; font-size: 18px; z-index:1001; }
     </style>
     </head>
     <body>
     <div id="night-sky"><div id="stars-container"></div></div>
     <div id="start-screen"><h1 style="text-shadow: 0 0 10px white;">GECEKONDU SİMÜLATÖRÜ</h1><button id="start-btn">OYUNU BAŞLAT</button></div>
     <div class="info-box"><span class="key">Oklar</span> Yürü <span class="key">E</span> Etkileşim <span class="key">X</span> Sıç <span class="key">F</span> Osur</div>
+    <div id="score-board">Sokak Saygısı: 0</div>
     <div class="skyline" id="skyline"></div><div class="ground"></div>
     <div class="shanty-house"><div class="shanty-chimney"></div><div class="shanty-roof"></div><div class="shanty-window"></div><div class="shanty-door"></div></div>
     <div id="car"><div class="car-top"><div class="car-window-area" id="driver-seat"></div></div><div class="car-body"><div class="headlight-beam" id="beam"></div></div><div class="wheel w1" id="w1"></div><div class="wheel w2" id="w2"></div></div>
@@ -337,8 +417,8 @@
         for(let i=0; i<150; i++){ let s = document.createElement('div'); s.className = 'star'; let size = Math.random()*3; s.style.width = size + 'px'; s.style.height = size + 'px'; s.style.top = Math.random()*80 + '%'; s.style.left = Math.random()*100 + '%'; s.style.animationDelay = Math.random()*5 + 's'; starsContainer.appendChild(s); }
         const skyline = document.getElementById('skyline'); const buildings = [];
         for(let i=0; i<20; i++){ let d = document.createElement('div'); d.className = 'building'; d.style.height = Math.random()*50+30+'%'; for(let j=0; j<8; j++){ let w = document.createElement('div'); w.className='window'; w.style.top=Math.random()*90+'%'; w.style.left=Math.random()*70+'%'; if(Math.random()>0.7) d.appendChild(w); } skyline.appendChild(d); buildings.push(d); }
-        const player = document.getElementById('player'); const pHead = document.getElementById('player-head'); const car = document.getElementById('car'); const beam = document.getElementById('beam'); const insideScreen = document.getElementById('inside-screen'); const startBtn = document.getElementById('start-btn'); const startScreen = document.getElementById('start-screen');
-        let px = 350, py = 0, vy = 0; let cx = 600; let driving = false, crouching = false, jumping = false, insideHouse = false; let gameActive = false; let audioCtx; let poops = []; const keys = {};
+        const player = document.getElementById('player'); const pHead = document.getElementById('player-head'); const car = document.getElementById('car'); const beam = document.getElementById('beam'); const insideScreen = document.getElementById('inside-screen'); const startBtn = document.getElementById('start-btn'); const startScreen = document.getElementById('start-screen'); const scoreBoard = document.getElementById('score-board');
+        let px = 350, py = 0, vy = 0; let cx = 600; let driving = false, crouching = false, jumping = false, insideHouse = false; let gameActive = false; let audioCtx; let poops = []; const keys = {}; let score = 0;
         startBtn.addEventListener('click', () => { startScreen.style.display = 'none'; gameActive = true; try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch(e) {} });
         function playSound(type) { if(!audioCtx) return; const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain(); osc.connect(gainNode); gainNode.connect(audioCtx.destination); if (type === 'fart') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.5); gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5); osc.start(); osc.stop(audioCtx.currentTime + 0.5); } else if (type === 'poop') { osc.type = 'triangle'; osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.1); gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15); osc.start(); osc.stop(audioCtx.currentTime + 0.15); } }
         window.addEventListener('keydown', e => { if(!gameActive || e.repeat) return; keys[e.key] = true; if(insideHouse) { if(e.key.toLowerCase() === 'e') toggleHouse(); return; } if(!driving) { if(e.key === 'ArrowUp' && !jumping) { vy = 12; jumping = true; } if(e.key.toLowerCase() === 'x') { crouching = true; player.classList.add('crouch'); pHead.src = POOPING_HEAD_URL; doPoop(); } if(e.key.toLowerCase() === 'f') doFart(); if(e.key.toLowerCase() === 'e') checkInteraction(); } else { if(e.key.toLowerCase() === 'e') toggleCar(); } });
@@ -346,31 +426,111 @@
         function checkInteraction() { if(Math.abs(px - cx - 100) < 120) toggleCar(); else if(px > 100 && px < 300) toggleHouse(); }
         function toggleHouse() { insideHouse = !insideHouse; insideScreen.style.display = insideHouse ? 'flex' : 'none'; }
         function toggleCar() { driving = !driving; if(driving) { document.getElementById('p-body').classList.add('hidden-body'); document.getElementById('p-legs').classList.add('hidden-body'); pHead.src = DRIVING_HEAD_URL; document.getElementById('driver-seat').appendChild(pHead); beam.style.display = 'block'; player.style.display = 'none'; } else { document.getElementById('p-body').classList.remove('hidden-body'); document.getElementById('p-legs').classList.remove('hidden-body'); pHead.src = DEFAULT_HEAD_URL; player.prepend(pHead); beam.style.display = 'none'; player.style.display = 'flex'; px = cx + 80; py = 0; vy = 0; player.style.left = px + 'px'; } }
-        function doFart() { playSound('fart'); const g = document.createElement('div'); g.className='gas-cloud'; g.style.left = px + 'px'; g.style.bottom = (140+py)+'px'; document.body.appendChild(g); setTimeout(()=>g.remove(), 2000); document.getElementById('night-sky').style.opacity = '1'; buildings.forEach(b => b.classList.add('lights-out')); setTimeout(() => buildings.forEach(b => b.classList.remove('lights-out')), 500); }
-        function doPoop() { playSound('poop'); const p = document.createElement('div'); p.className = 'poop-pile'; const s = document.createElement('div'); s.className = 'poop-steam'; p.appendChild(s); let poopX = px + 12; p.style.left = poopX + 'px'; document.body.appendChild(p); poops.push({el:p, x:poopX, squashed:false}); if(poops.length > 20) poops.shift().el.remove(); }
-        function loop() { if(!gameActive) { requestAnimationFrame(loop); return; } if(!insideHouse) { if(!driving) { if(keys['ArrowRight']) { px += 4; player.style.transform = 'scaleX(1)'; } if(keys['ArrowLeft']) { px -= 4; player.style.transform = 'scaleX(-1)'; } py += vy; if(py > 0) vy -= 0.6; else { py = 0; vy = 0; jumping = false; } if(px < 0) px = 0; if(px > window.innerWidth - 50) px = window.innerWidth - 50; player.style.left = px + 'px'; player.style.bottom = (115 + py) + 'px'; } else { let move = 0; if(keys['ArrowRight']) { cx += 8; move=1; car.style.transform = 'scaleX(1)'; } if(keys['ArrowLeft']) { cx -= 8; move=-1; car.style.transform = 'scaleX(-1)'; } if(move !== 0) { document.querySelectorAll('.wheel').forEach(w=>w.classList.add('spinning')); } else { document.querySelectorAll('.wheel').forEach(w=>w.classList.remove('spinning')); } if(cx < -150) cx = -150; if(cx > window.innerWidth - 100) cx = window.innerWidth - 100; car.style.left = cx + 'px'; poops.forEach(obj => { if(!obj.squashed && obj.x > cx+40 && obj.x < cx+200) { obj.el.classList.add('squashed'); obj.squashed = true; } }); } } requestAnimationFrame(loop); } loop();
+        function doFart() { playSound('fart'); const g = document.createElement('div'); g.className='gas-cloud'; g.style.left = px + 'px'; g.style.bottom = (140+py)+'px'; document.body.appendChild(g); setTimeout(()=>g.remove(), 2000); document.getElementById('night-sky').style.opacity = '1'; buildings.forEach(b => b.classList.add('lights-out')); setTimeout(() => buildings.forEach(b => b.classList.remove('lights-out')), 500); score += 5; updateScore(); }
+        function doPoop() { playSound('poop'); const p = document.createElement('div'); p.className = 'poop-pile'; const s = document.createElement('div'); s.className = 'poop-steam'; p.appendChild(s); let poopX = px + 12; p.style.left = poopX + 'px'; document.body.appendChild(p); poops.push({el:p, x:poopX, squashed:false}); if(poops.length > 20) poops.shift().el.remove(); score += 10; updateScore(); }
+        function updateScore() { scoreBoard.innerText = "Sokak Saygısı: " + score; }
+        function loop() { if(!gameActive) { requestAnimationFrame(loop); return; } if(!insideHouse) { if(!driving) { if(keys['ArrowRight']) { px += 4; player.style.transform = 'scaleX(1)'; } if(keys['ArrowLeft']) { px -= 4; player.style.transform = 'scaleX(-1)'; } py += vy; if(py > 0) vy -= 0.6; else { py = 0; vy = 0; jumping = false; } if(px < 0) px = 0; if(px > window.innerWidth - 50) px = window.innerWidth - 50; player.style.left = px + 'px'; player.style.bottom = (115 + py) + 'px'; } else { let move = 0; if(keys['ArrowRight']) { cx += 8; move=1; car.style.transform = 'scaleX(1)'; } if(keys['ArrowLeft']) { cx -= 8; move=-1; car.style.transform = 'scaleX(-1)'; } if(move !== 0) { document.querySelectorAll('.wheel').forEach(w=>w.classList.add('spinning')); } else { document.querySelectorAll('.wheel').forEach(w=>w.classList.remove('spinning')); } if(cx < -150) cx = -150; if(cx > window.innerWidth - 100) cx = window.innerWidth - 100; car.style.left = cx + 'px'; poops.forEach(obj => { if(!obj.squashed && obj.x > cx+40 && obj.x < cx+200) { obj.el.classList.add('squashed'); obj.squashed = true; score += 50; updateScore(); } }); } } requestAnimationFrame(loop); } loop();
     <\/script>
     </body>
     </html>
     `;
 
-    // --- VİDEO VERİTABANI ---
-    const videos = [
-        { id: 'jNQXAC9IVRw', title: 'Me at the zoo (2005)' },
-        { id: '9bZkp7q19f0', title: 'Gangnam Style' },
-        { id: 'dQw4w9WgXcQ', title: 'Rick Roll' },
-        { id: 'ALZHF5UqnU4', title: 'Marshmello - Alone' },
-        { id: 'kJQP7kiw5Fk', title: 'Despacito' },
-        { id: 'L_jWHffIx5E', title: 'Smash Mouth - All Star' }
+    // --- VİDEO VE MÜZİK VERİTABANI ---
+   const videos = [
+    // --- MEVCUT LİSTENİZ ---
+    { id: 'kXYiU_JCYtU', title: 'Linkin Park - Numb' },
+    { id: 'pXRviuL6vMY', title: 'Twenty One Pilots - Stressed Out' },
+    { id: '8UVNT4wvIGY', title: 'Gotye - Somebody That I Used To Know' },
+    { id: 'RgKAFK5djSk', title: 'Wiz Khalifa - See You Again' },
+    { id: 'JGwWNGJdvx8', title: 'Ed Sheeran - Shape of You' },
+    { id: 'CevxZvSJLk8', title: 'Katy Perry - Roar' },
+    { id: '09R8_2nJtjg', title: 'Maroon 5 - Sugar' },
+    { id: 'hT_nvWreIhg', title: 'OneRepublic - Counting Stars' },
+    { id: 'IcrbM1l_BoI', title: 'Avicii - Wake Me Up' },
+    { id: 'y6120QOlsfU', title: 'Darude - Sandstorm' },
+    { id: 'kffacxfA7G4', title: 'Justin Bieber - Baby' },
+    { id: '-Bz0WcqioBc', title: 'Crazy Frog - Axel F' },
+
+    // --- EKLENEN DEV LİSTE ---
+
+    // 1. İNTERNET EFSANELERİ & MEME'LER
+    { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up' },
+    { id: '9bZkp7q19f0', title: 'PSY - Gangnam Style' },
+    { id: 'jofNR_WkoCE', title: 'Ylvis - The Fox (What Does The Fox Say?)' },
+    { id: 'QH2-TGUlwu4', title: 'Nyan Cat' },
+    { id: 'sCNrK-n68CM', title: 'Trololo Song (Eduard Khil)' },
+    { id: 'ZZ5LpwO-An4', title: 'He-Man - HEYYEYAAEYAAAEYAEYAA' },
+    { id: 'KF32DRg9opA', title: 'Daler Mehndi - Tunak Tunak Tun' },
+
+    // 2. ROCK & METAL KLASİKLERİ
+    { id: 'hTWKbfoikeg', title: 'Nirvana - Smells Like Teen Spirit' },
+    { id: 'fJ9rUzIMcZQ', title: 'Queen - Bohemian Rhapsody' },
+    { id: 'vx2u5uUu3DE', title: 'Bon Jovi - It\'s My Life' },
+    { id: '3YxaaGgTQYM', title: 'Evanescence - Bring Me To Life' },
+    { id: '1w7OgIMMRc4', title: 'Guns N\' Roses - Sweet Child O\' Mine' },
+    { id: 'CSvFpBOe8eY', title: 'System Of A Down - Chop Suey!' },
+    { id: 'v2AC41dglnM', title: 'AC/DC - Thunderstruck' },
+    { id: 'k-CovZs-VqA', title: 'Metallica - Nothing Else Matters' },
+
+    // 3. 2000'ler & 2010'lar POP HİTLERİ
+    { id: 'qrO4YZeyl0I', title: 'Lady Gaga - Bad Romance' },
+    { id: 'pRpeEdMmmQ0', title: 'Shakira - Waka Waka (This Time for Africa)' },
+    { id: '2Vv-BfVoq4g', title: 'Ed Sheeran - Perfect' },
+    { id: 'lp-EO5I60KA', title: 'Ed Sheeran - Thinking Out Loud' },
+    { id: 'nfWlot6h_JM', title: 'Taylor Swift - Shake It Off' },
+    { id: 'kJQP7kiw5Fk', title: 'Luis Fonsi - Despacito ft. Daddy Yankee' },
+    { id: 'YQHsXMglC9A', title: 'Adele - Hello' },
+    { id: 'rYEDA3JcQqw', title: 'Adele - Rolling in the Deep' },
+    { id: 'OPf0YbXqDm0', title: 'Mark Ronson - Uptown Funk ft. Bruno Mars' },
+    { id: 'fRh_vgS2dFE', title: 'Justin Bieber - Sorry' },
+    { id: 'y83x7MgzWOA', title: 'Pharrell Williams - Happy' },
+    { id: 'fLexgOxsZu0', title: 'Bruno Mars - The Lazy Song' },
+    { id: 'RubBzkZzpUA', title: 'Katy Perry - Dark Horse' },
+    { id: 'pvP_OwVSFQQ', title: 'Fifth Harmony - Worth It' },
+
+    // 4. RAP & HIP-HOP
+    { id: 'uelHwf8o7_U', title: 'Eminem - Love The Way You Lie ft. Rihanna' },
+    { id: 'XbGs_qK2PQA', title: 'Eminem - Rap God' },
+    { id: '_Yhyp-_hX2s', title: 'Eminem - Lose Yourself' },
+    { id: '5qm8PH4xAss', title: '50 Cent - In Da Club' },
+    { id: 'fPO76Jlnz6c', title: 'Coolio - Gangsta\'s Paradise' },
+    { id: 'L_jWHffIx5E', title: 'Smash Mouth - All Star' },
+    { id: '0KSOMA3QBU0', title: 'Katy Perry - Dark Horse ft. Juicy J' },
+
+    // 5. ELEKTRONİK, DANCE & OYUNCU FAVORİLERİ
+    { id: '60ItHLz5WEA', title: 'Alan Walker - Faded' },
+    { id: 'ALZHF5UqnU4', title: 'Marshmello - Alone' },
+    { id: 'gCYcHz2k5x0', title: 'Martin Garrix - Animals' },
+    { id: 'YQEWpTEPd5I', title: 'Skrillex - Bangarang' },
+    { id: '2zNSgSzhBfM', title: 'Macklemore & Ryan Lewis - Can\'t Hold Us' },
+    { id: 'ktvTqknDobU', title: 'Imagine Dragons - Radioactive' },
+    { id: '7wtfhZwyrcc', title: 'Imagine Dragons - Believer' },
+    { id: 'PIh2xe4jnpk', title: 'Magic! - Rude' },
+    
+    // 6. NOSTALJİK EFSANELER (80'ler - 90'lar)
+    { id: 'djV11Xbc914', title: 'a-ha - Take On Me' },
+    { id: 'sOnqjkJTMaA', title: 'Michael Jackson - Thriller' },
+    { id: 'Zi_XLOBDo_Y', title: 'Michael Jackson - Billie Jean' },
+    { id: 'eAM2-hg7iKg', title: 'Barbie Girl - Aqua' },
+    { id: 'rog8ou-ZepE', title: 'Vanilla Ice - Ice Ice Baby' },
+    { id: 'XfR9iY5y94s', title: 'Men At Work - Down Under' }
+];
+    const tracks = [
+        { title: "Mustafa Sandal - Aya Benzer", duration: "3:56" },
+        { title: "Sandstorm - Darude", duration: "3:45" },
+        { title: "Tarkan - Şımarık", duration: "3:10" },
+        { title: "Bomfunk MC's - Freestyler", duration: "5:06" },
+        { title: "Mirkelam - Her Gece", duration: "4:02" }
     ];
 
-    // --- SNAKE GAME ENGINE ---
+    // --- SNAKE GAME ENGINE (Skor Kayıtlı) ---
     class SnakeGame {
         constructor() {
             this.canvas = null; this.ctx = null; this.interval = null;
             this.gridSize = 15; this.tileCount = 20;
             this.snake = []; this.food = {}; this.dx = 0; this.dy = 0;
-            this.score = 0; this.isRunning = false; this.isGameOver = false;
+            this.score = 0; this.highScore = localStorage.getItem('snake_highscore') || 0;
+            this.isRunning = false; this.isGameOver = false;
             this.handleKey = this.handleKey.bind(this);
         }
 
@@ -402,8 +562,10 @@
         handleKey(e) {
             const win = document.getElementById('win-snake');
             if(!win || win.style.display === 'none') return;
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
+            
             if(!this.isRunning && !this.isGameOver) {
-                this.isRunning = true; this.interval = setInterval(() => this.loop(), 100);
+                this.isRunning = true; this.interval = setInterval(() => this.loop(), 80);
             }
             if(this.isGameOver && e.key.toLowerCase() === 'r') {
                 this.reset(); this.draw(); return;
@@ -422,11 +584,22 @@
             if(head.y < 0) head.y = this.tileCount - 1; if(head.y >= this.tileCount) head.y = 0;
             for(let i = 0; i < this.snake.length; i++) { if(head.x === this.snake[i].x && head.y === this.snake[i].y) { this.gameOver(); return; } }
             this.snake.unshift(head);
-            if(head.x === this.food.x && head.y === this.food.y) { this.score += 10; this.placeFood(); } else { this.snake.pop(); }
+            if(head.x === this.food.x && head.y === this.food.y) { 
+                this.score += 10; 
+                this.placeFood(); 
+            } else { this.snake.pop(); }
             this.draw();
         }
 
-        gameOver() { this.isRunning = false; this.isGameOver = true; clearInterval(this.interval); this.draw(); }
+        gameOver() { 
+            this.isRunning = false; this.isGameOver = true; 
+            if(this.score > this.highScore) {
+                this.highScore = this.score;
+                localStorage.setItem('snake_highscore', this.highScore);
+            }
+            clearInterval(this.interval); 
+            this.draw(); 
+        }
 
         draw() {
             this.ctx.fillStyle = '#9BB825'; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -436,7 +609,8 @@
             this.ctx.beginPath(); this.ctx.arc(fx, fy, this.gridSize/2 - 2, 0, Math.PI*2); this.ctx.fill();
             for(let part of this.snake) { this.ctx.fillStyle = 'black'; this.ctx.fillRect(part.x * this.gridSize, part.y * this.gridSize, this.gridSize - 1, this.gridSize - 1); }
             this.ctx.fillStyle = 'black'; this.ctx.font = '14px Courier New'; this.ctx.fillText("SKOR: " + this.score, 5, 15);
-            if(!this.isRunning && !this.isGameOver) { this.ctx.fillText("BAŞLA: Tuşa Bas", 90, 145); }
+            this.ctx.fillText("EN İYİ: " + this.highScore, 180, 15);
+            if(!this.isRunning && !this.isGameOver) { this.ctx.fillText("BAŞLA: Yön Tuşu", 90, 145); }
             if(this.isGameOver) { this.ctx.fillText("OYUN BİTTİ", 110, 140); this.ctx.fillText("'R' = Tekrar", 100, 160); }
         }
     }
@@ -448,21 +622,62 @@
             this.zIndex = 100;
             this.windows = {};
             this.snakeInstance = null;
+            
+            // Paint Değişkenleri
+            this.paintCtx = null;
+            this.isPainting = false;
+            this.paintColor = 'black';
+
+            // WinAmp Değişkenleri
+            this.ampInterval = null;
+
+            // İkon Sürükleme
+            this.iconDrag = null;
+            
             this.initBoot();
             this.startClock();
+            this.initContextMenu();
         }
 
         initBoot() {
             setTimeout(() => {
                 document.getElementById('boot-screen').style.display = 'none';
                 document.getElementById('desktop').style.display = 'block';
-                document.getElementById('desktop').addEventListener('click', (e) => {
-                    if (!e.target.closest('#start-menu') && !e.target.closest('#start-btn')) {
+                
+                // Global Tıklama Dinleyicisi (Menüleri kapatmak için)
+                document.addEventListener('mousedown', (e) => {
+                    // Start Menu
+                    if (!e.target.closest('#start-menu') && !e.target.closest('#start-btn') && !e.target.closest('.task-item')) {
                         document.getElementById('start-menu').style.display = 'none';
                         document.getElementById('start-btn').classList.remove('active');
                     }
+                    // Context Menu
+                    if (!e.target.closest('#context-menu')) {
+                        document.getElementById('context-menu').style.display = 'none';
+                    }
                 });
-            }, 2000);
+                
+                // İkon sürükleme bitişi
+                document.addEventListener('mouseup', () => { this.iconDrag = null; });
+                document.addEventListener('mousemove', (e) => this.handleIconDrag(e));
+
+            }, 3000);
+        }
+
+        initContextMenu() {
+            const desktop = document.getElementById('desktop');
+            const menu = document.getElementById('context-menu');
+            desktop.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                // Taskbar veya pencere üzerinde açılmasın
+                if(e.target.closest('.window') || e.target.closest('#taskbar') || e.target.closest('.desktop-icon')) return;
+                
+                menu.style.display = 'block';
+                menu.style.left = e.clientX + 'px';
+                menu.style.top = e.clientY + 'px';
+                this.zIndex++;
+                menu.style.zIndex = this.zIndex + 9999;
+            });
         }
 
         startClock() {
@@ -490,6 +705,50 @@
             document.getElementById('bsod').style.display = 'block';
         }
 
+        shutdown() {
+            const overlay = document.getElementById('shutdown-overlay');
+            document.getElementById('start-menu').style.display = 'none';
+            overlay.style.opacity = '1';
+            setTimeout(() => {
+                overlay.innerHTML = "<div style='color:#f00; font-family:Courier'>SYSTEM HALTED</div>";
+            }, 3000);
+        }
+
+        refreshDesktop() {
+            const desk = document.getElementById('desktop');
+            desk.style.display = 'none';
+            document.getElementById('context-menu').style.display = 'none';
+            setTimeout(() => desk.style.display = 'block', 100);
+        }
+
+        changeWallpaper() {
+            const colors = ['#008080', '#000080', '#4682B4', '#708090', '#2F4F4F', '#004040', 'black'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            document.documentElement.style.setProperty('--desktop-bg', randomColor);
+            document.getElementById('context-menu').style.display = 'none';
+        }
+
+        // --- İKON SÜRÜKLEME ---
+        startIconDrag(e, el) {
+            if(e.button !== 0) return; // Sadece sol tık
+            this.iconDrag = {
+                el: el,
+                offX: e.clientX - el.offsetLeft,
+                offY: e.clientY - el.offsetTop
+            };
+        }
+
+        handleIconDrag(e) {
+            if(!this.iconDrag) return;
+            e.preventDefault();
+            const el = this.iconDrag.el;
+            const x = e.clientX - this.iconDrag.offX;
+            const y = e.clientY - this.iconDrag.offY;
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+        }
+
+        // --- PENCERE YÖNETİMİ ---
         openApp(appId) {
             if (this.windows[appId]) {
                 this.focusWindow(appId);
@@ -501,8 +760,11 @@
             win.id = `win-${appId}`;
             
             const offset = Object.keys(this.windows).length * 25;
-            win.style.left = (50 + offset) + 'px';
-            win.style.top = (30 + offset) + 'px';
+            const safeLeft = Math.min(50 + offset, window.innerWidth - 300);
+            const safeTop = Math.min(30 + offset, window.innerHeight - 300);
+            
+            win.style.left = safeLeft + 'px';
+            win.style.top = safeTop + 'px';
             win.style.zIndex = ++this.zIndex;
 
             win.dataset.restoredWidth = ''; win.dataset.restoredHeight = '';
@@ -514,7 +776,6 @@
                 case 'gecekondu':
                     title = 'Gecekondu Simülatörü 2000';
                     width = '800px'; height = '500px';
-                    // Blob tekniği ile oyunu Iframe içine gömüyoruz
                     const blob = new Blob([GECEKONDU_SOURCE_CODE], {type: 'text/html'});
                     const url = URL.createObjectURL(blob);
                     content = `<iframe src="${url}" style="width:100%; height:100%; border:none; background:black;"></iframe>`;
@@ -527,21 +788,28 @@
                 case 'notepad':
                     title = 'Not Defteri';
                     const savedNote = localStorage.getItem('retro_note') || '';
-                    content = `<textarea id="notepad-area" oninput="localStorage.setItem('retro_note', this.value)" 
-                        style="width:100%; height:100%; resize:none; border:none; padding:5px; font-family:'Courier New'; outline:none; font-size:14px;">${savedNote}</textarea>`;
+                    content = `
+                        <div style="display:flex; flex-direction:column; height:100%;">
+                            <div style="background:#ddd; padding:2px; border-bottom:1px solid #999;">
+                                <button class="btn-win" onclick="os.downloadNote()">Kaydet (.txt)</button>
+                            </div>
+                            <textarea id="notepad-area" oninput="localStorage.setItem('retro_note', this.value)" 
+                            style="flex:1; resize:none; border:none; padding:5px; font-family:'Courier New'; outline:none; font-size:14px;">${savedNote}</textarea>
+                        </div>`;
                     break;
                 case 'settings':
                     title = 'Denetim Masası';
-                    width = '300px'; height = '250px';
+                    width = '300px'; height = '300px';
                     content = `
                         <div style="padding:20px; text-align:center; background:#eee; height:100%; display:flex; flex-direction:column; gap:10px;">
                             <p><strong>Görüntü Ayarları</strong></p>
-                            <button onclick="document.body.classList.toggle('crt-on')" class="start-btn" style="width:100%; justify-content:center;">📺 CRT Efekti Aç/Kapa</button>
+                            <button onclick="document.body.classList.toggle('crt-on')" class="start-btn" style="width:100%; justify-content:center;">📺 CRT Efekti</button>
+                            <button onclick="os.changeWallpaper()" class="start-btn" style="width:100%; justify-content:center;">🖼️ Rastgele Arkaplan</button>
                             <hr style="width:100%; border:1px inset">
                             <p><strong>Sistem</strong></p>
                             <button onclick="os.triggerBSOD()" class="start-btn" style="width:100%; justify-content:center; color:red;">💣 Çökert</button>
                             <div style="flex:1"></div>
-                            <p style="font-size:10px; color:#666;">RetroOS v2.1 Pro</p>
+                            <p style="font-size:10px; color:#666;">RetroOS v3.1 Ultimate</p>
                         </div>`;
                     break;
                 case 'snake':
@@ -550,6 +818,65 @@
                     content = `<div style="background:silver; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;">
                         <canvas id="snakeCanvas" width="300" height="300"></canvas>
                         <div style="font-size:11px; font-family:'Tahoma'; color:#333;">Yön Tuşları: Hareket | R: Yeniden</div>
+                    </div>`;
+                    break;
+                case 'paint':
+                    title = 'Piksel Boyama - Adsız';
+                    width = '500px'; height = '400px';
+                    content = this.getPaintHTML();
+                    break;
+                case 'calc':
+                    title = 'Hesap Makinesi';
+                    width = '250px'; height = '300px';
+                    content = this.getCalcHTML();
+                    break;
+                case 'bilgisayarim':
+                    title = 'Bilgisayarım';
+                    width = '500px'; height = '350px';
+                    content = this.getComputerHTML();
+                    break;
+                case 'winamp':
+                    title = 'WinAmp';
+                    width = '300px'; height = '400px';
+                    content = this.getWinampHTML();
+                    break;
+                case 'browser':
+                    title = 'Internet Explorer';
+                    width = '700px'; height = '500px';
+                    content = `
+                    <div style="display:flex; flex-direction:column; height:100%;">
+                        <div style="padding:5px; background:#ddd; border-bottom:1px solid #999; display:flex; gap:5px;">
+                            <button class="btn-win">Geri</button>
+                            <input type="text" value="http://www.google.com" style="flex:1;" readonly>
+                            <button class="btn-win">Git</button>
+                        </div>
+                        <iframe src="https://www.google.com/webhp?igu=1" style="flex:1; border:none; background:white;"></iframe>
+                    </div>`;
+                    break;
+                case 'trash':
+                    title = 'Geri Dönüşüm Kutusu';
+                    // --- DÜZELTME & EKLEME: Sadece yazı yerine buton eklendi ---
+                    content = `
+                    <div style="padding:20px; text-align:center; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                        <div style="font-size:40px;">🗑️</div>
+                        <p id="trash-text">Geri dönüşüm kutusu boş.</p>
+                        <button class="btn-win" onclick="os.emptyTrash()">Kutuyu Boşalt</button>
+                    </div>`;
+                    break;
+                // --- YENİ EKLENEN UYGULAMA: TERMINAL ---
+                case 'terminal':
+                    title = 'MS-DOS İstemi';
+                    width = '600px'; height = '400px';
+                    content = `
+                    <div class="terminal-container" onclick="document.getElementById('term-in').focus()">
+                        <div>RetroOS [Sürüm 3.1.2025]</div>
+                        <div>(C) Telif Hakkı 1985-2025 AI Corp.</div>
+                        <br>
+                        <div id="term-output"></div>
+                        <div style="display:flex;">
+                            <span>C:\\></span>
+                            <input type="text" id="term-in" class="terminal-input" autocomplete="off" onkeydown="os.handleTerminal(event)">
+                        </div>
                     </div>`;
                     break;
             }
@@ -577,11 +904,15 @@
             this.windows[appId] = win;
             this.addTaskbarItem(appId, title);
 
+            // Uygulamaya özel başlatma fonksiyonları
             if(appId === 'retrotube') this.renderRetroGrid();
             if(appId === 'snake') {
                 this.snakeInstance = new SnakeGame();
                 setTimeout(() => this.snakeInstance.init(), 50);
             }
+            if(appId === 'paint') this.initPaint();
+            if(appId === 'winamp') this.initWinamp();
+            if(appId === 'terminal') setTimeout(() => document.getElementById('term-in').focus(), 100);
 
             win.onmousedown = () => this.focusWindow(appId);
             this.focusWindow(appId);
@@ -598,6 +929,9 @@
             if(appId === 'snake' && this.snakeInstance) {
                 this.snakeInstance.destroy();
                 this.snakeInstance = null;
+            }
+            if(appId === 'winamp' && this.ampInterval) {
+                clearInterval(this.ampInterval);
             }
         }
 
@@ -641,10 +975,10 @@
         maximizeWindow(appId) {
             const win = document.getElementById(`win-${appId}`);
             if(win.style.width === '100%') {
-                win.style.width = win.dataset.restoredWidth || '400px';
-                win.style.height = win.dataset.restoredHeight || '300px';
-                win.style.top = win.dataset.restoredTop || '50px';
-                win.style.left = win.dataset.restoredLeft || '50px';
+                win.style.width = win.dataset.restoredWidth;
+                win.style.height = win.dataset.restoredHeight;
+                win.style.top = win.dataset.restoredTop;
+                win.style.left = win.dataset.restoredLeft;
             } else {
                 win.dataset.restoredWidth = win.style.width;
                 win.dataset.restoredHeight = win.style.height;
@@ -665,6 +999,7 @@
             if(win.style.width === '100%') return;
             let startX = e.clientX; let startY = e.clientY;
             let startLeft = win.offsetLeft; let startTop = win.offsetTop;
+            
             const onMouseMove = (ev) => {
                 let dx = ev.clientX - startX; let dy = ev.clientY - startY;
                 win.style.left = `${startLeft + dx}px`;
@@ -678,13 +1013,15 @@
             document.addEventListener('mouseup', onMouseUp);
         }
 
+        // --- HTML GENERATORS ---
+
         getRetroTubeHTML() {
             return `
                 <div class="app-retro" style="display:flex; flex-direction:column; height:100%; background:white;">
                     <div class="app-header" style="padding:5px; background:#eee; border-bottom:1px solid #999; display:flex; gap:5px;">
-                        <button onclick="os.renderRetroGrid()" style="cursor:pointer; font-weight:bold;">🏠 Ana Sayfa</button>
+                        <button onclick="os.renderRetroGrid()" class="btn-win">🏠 Ana Sayfa</button>
                         <input type="text" id="custom-vid-input" placeholder="Video ID veya Link..." style="flex:1;">
-                        <button onclick="os.playCustomVideo()" style="cursor:pointer;">Git</button>
+                        <button onclick="os.playCustomVideo()" class="btn-win">Git</button>
                     </div>
                     <div id="retro-grid" class="app-grid"></div>
                     <div id="retro-player" style="display:none; height:100%; background:black; flex-direction:column;">
@@ -694,6 +1031,84 @@
             `;
         }
 
+        getCalcHTML() {
+            return `
+            <div style="height:100%; background:#eee; padding:5px; display:flex; flex-direction:column;">
+                <input type="text" class="calc-display" id="calc-disp" readonly value="">
+                <div class="calc-grid">
+                    <button class="calc-btn" onclick="os.calcIn('7')">7</button><button class="calc-btn" onclick="os.calcIn('8')">8</button><button class="calc-btn" onclick="os.calcIn('9')">9</button><button class="calc-btn" onclick="os.calcIn('/')">/</button>
+                    <button class="calc-btn" onclick="os.calcIn('4')">4</button><button class="calc-btn" onclick="os.calcIn('5')">5</button><button class="calc-btn" onclick="os.calcIn('6')">6</button><button class="calc-btn" onclick="os.calcIn('*')">*</button>
+                    <button class="calc-btn" onclick="os.calcIn('1')">1</button><button class="calc-btn" onclick="os.calcIn('2')">2</button><button class="calc-btn" onclick="os.calcIn('3')">3</button><button class="calc-btn" onclick="os.calcIn('-')">-</button>
+                    <button class="calc-btn" onclick="os.calcIn('0')">0</button><button class="calc-btn" onclick="os.calcCl()">C</button><button class="calc-btn" onclick="os.calcEq()">=</button><button class="calc-btn" onclick="os.calcIn('+')">+</button>
+                </div>
+            </div>`;
+        }
+
+        getPaintHTML() {
+            return `
+            <div style="height:100%; display:flex; flex-direction:column;">
+                <div class="paint-toolbar">
+                    <div class="color-box" style="background:black" onclick="os.setPaintColor(this, 'black')"></div>
+                    <div class="color-box" style="background:red" onclick="os.setPaintColor(this, 'red')"></div>
+                    <div class="color-box" style="background:blue" onclick="os.setPaintColor(this, 'blue')"></div>
+                    <div class="color-box" style="background:green" onclick="os.setPaintColor(this, 'green')"></div>
+                    <div class="color-box" style="background:yellow" onclick="os.setPaintColor(this, 'yellow')"></div>
+                    <div class="color-box" style="background:white" onclick="os.setPaintColor(this, 'white')"></div>
+                    <div style="flex:1"></div>
+                    <button class="btn-win" onclick="os.clearPaint()">Temizle</button>
+                    <button class="btn-win" onclick="os.savePaint()">Kaydet</button>
+                </div>
+                <div style="flex:1; background:white; cursor:crosshair; position:relative; overflow:hidden;">
+                    <canvas id="paintCanvas" style="display:block;"></canvas>
+                </div>
+            </div>`;
+        }
+
+        getComputerHTML() {
+            return `
+            <div style="display:flex; height:100%;">
+                <div style="width:120px; background:white; border-right:2px solid #ccc; padding:5px;">
+                    <div style="margin-bottom:5px;">📁 Masaüstü</div>
+                    <div style="margin-bottom:5px; font-weight:bold; color:blue;">💻 Bilgisayarım</div>
+                    <div style="margin-left:10px;">💾 C: (Sistem)</div>
+                    <div style="margin-left:10px;">💿 D: (Oyunlar)</div>
+                </div>
+                <div class="file-list" style="flex:1; overflow-y:auto;">
+                    <div class="file-item" ondblclick="os.openApp('notepad')">📄 notlar.txt</div>
+                    <div class="file-item" ondblclick="os.openApp('gecekondu')">🎮 gecekondu.exe</div>
+                    <div class="file-item">📁 Windows</div>
+                    <div class="file-item">📁 Program Files</div>
+                    <div class="file-item" ondblclick="os.triggerBSOD()">⚠️ system32.dll</div>
+                </div>
+            </div>`;
+        }
+
+        getWinampHTML() {
+            let list = '';
+            tracks.forEach((t, i) => {
+                list += `<div class="track-item" onclick="os.playTrack(${i}, this)">${i+1}. ${t.title} (${t.duration})</div>`;
+            });
+            return `
+            <div class="amp-main">
+                <div class="amp-screen">
+                    <div style="font-size:10px;">WinAmp v1.0</div>
+                    <div id="amp-status" style="margin:2px 0; color:white;">HAZIR</div>
+                    <div class="amp-visualizer" id="amp-vis"></div>
+                </div>
+                <div class="amp-controls">
+                    <button class="btn-win" onclick="os.ampAction('prev')">|&lt;</button>
+                    <button class="btn-win" onclick="os.ampAction('play')">&gt;</button>
+                    <button class="btn-win" onclick="os.ampAction('pause')">||</button>
+                    <button class="btn-win" onclick="os.ampAction('stop')">[]</button>
+                    <button class="btn-win" onclick="os.ampAction('next')">&gt;|</button>
+                </div>
+                <div class="amp-playlist" id="amp-list">${list}</div>
+            </div>`;
+        }
+
+        // --- APP LOGIC ---
+
+        // RetroTube
         renderRetroGrid() {
             const grid = document.getElementById('retro-grid');
             const player = document.getElementById('retro-player');
@@ -728,6 +1143,172 @@
             else if(input.includes('youtu.be/')) vidId = input.split('youtu.be/')[1];
             if(vidId.length > 5) this.playVideo(vidId);
             else alert("Geçersiz Video ID!");
+        }
+
+        // Paint
+        initPaint() {
+            setTimeout(() => {
+                const canvas = document.getElementById('paintCanvas');
+                const container = canvas.parentElement;
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
+                
+                this.paintCtx = canvas.getContext('2d');
+                this.paintCtx.lineCap = 'round';
+                this.paintCtx.lineWidth = 3;
+                this.paintCtx.strokeStyle = 'black';
+
+                canvas.addEventListener('mousedown', (e) => {
+                    this.isPainting = true;
+                    this.paintCtx.beginPath();
+                    this.paintCtx.moveTo(e.offsetX, e.offsetY);
+                });
+                canvas.addEventListener('mousemove', (e) => {
+                    if(!this.isPainting) return;
+                    this.paintCtx.lineTo(e.offsetX, e.offsetY);
+                    this.paintCtx.stroke();
+                });
+                const stop = () => this.isPainting = false;
+                canvas.addEventListener('mouseup', stop);
+                canvas.addEventListener('mouseleave', stop);
+            }, 100);
+        }
+        setPaintColor(el, color) {
+            this.paintColor = color;
+            this.paintCtx.strokeStyle = color;
+            this.paintCtx.lineWidth = (color === 'white') ? 10 : 3;
+            document.querySelectorAll('.color-box').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+        }
+        clearPaint() {
+            const canvas = document.getElementById('paintCanvas');
+            this.paintCtx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        savePaint() {
+            const canvas = document.getElementById('paintCanvas');
+            const link = document.createElement('a');
+            link.download = 'resim.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        // Calculator
+        calcIn(val) { document.getElementById('calc-disp').value += val; }
+        calcCl() { document.getElementById('calc-disp').value = ''; }
+        calcEq() { 
+            try { 
+                document.getElementById('calc-disp').value = eval(document.getElementById('calc-disp').value); 
+            } catch(e) { document.getElementById('calc-disp').value = 'Hata'; } 
+        }
+
+        // Notepad
+        downloadNote() {
+            const text = document.getElementById('notepad-area').value;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'Notum.txt';
+            link.click();
+        }
+        
+        // Trash (YENİ EKLEME)
+        emptyTrash() {
+            // Basit bir ses efekti çalmaya çalış (tarayıcı izin verirse)
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sawtooth';
+                osc.frequency.value = 100;
+                gain.gain.value = 0.1;
+                osc.start();
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.5);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.stop(audioCtx.currentTime + 0.5);
+            } catch(e) {}
+            
+            document.getElementById('trash-text').innerText = "Geri dönüşüm kutusu zaten tertemiz!";
+            setTimeout(() => {
+                 document.getElementById('trash-text').innerText = "Geri dönüşüm kutusu boş.";
+            }, 2000);
+        }
+
+        // Terminal (YENİ EKLEME)
+        handleTerminal(e) {
+            if(e.key === 'Enter') {
+                const input = e.target.value.trim();
+                const outputDiv = document.getElementById('term-output');
+                
+                // Komutu yazdır
+                outputDiv.innerHTML += `<div>C:\\> ${input}</div>`;
+                
+                // Cevap ver
+                let response = "";
+                const cmd = input.toLowerCase();
+                
+                if(cmd === 'help') response = "KOMUTLAR: HELP, VER, DATE, CLS, DIR, ECHO, EXIT";
+                else if(cmd === 'ver') response = "RetroOS Ultimate [Sürüm 3.1.2025]";
+                else if(cmd === 'date') response = new Date().toString();
+                else if(cmd === 'cls') { outputDiv.innerHTML = ""; e.target.value = ""; return; }
+                else if(cmd === 'dir') response = " <DIR> WINDOWS<br> <DIR> PROGRAM FILES<br> gecekondu.exe<br> notlar.txt<br> system32.dll";
+                else if(cmd.startsWith('echo ')) response = input.substring(5);
+                else if(cmd === 'exit') { this.closeApp('terminal'); return; }
+                else if(cmd === '') response = "";
+                else response = `'${input}' geçerli bir komut değil.`;
+                
+                if(response) outputDiv.innerHTML += `<div style="color:#ccc; margin-bottom:10px;">${response}</div>`;
+                
+                e.target.value = "";
+                // Scroll to bottom
+                const container = document.querySelector('.terminal-container');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // WinAmp
+        initWinamp() {
+            const vis = document.getElementById('amp-vis');
+            vis.innerHTML = '';
+            for(let i=0; i<20; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'amp-bar';
+                bar.style.height = '5px';
+                vis.appendChild(bar);
+            }
+        }
+        playTrack(idx, el) {
+            document.querySelectorAll('.track-item').forEach(t => t.classList.remove('playing'));
+            if(el) el.classList.add('playing');
+            else document.querySelectorAll('.track-item')[idx].classList.add('playing');
+            
+            document.getElementById('amp-status').innerText = "ÇALIYOR: " + tracks[idx].title.substring(0, 20) + "...";
+            this.startAmpVisualizer();
+        }
+        ampAction(act) {
+            if(act === 'play') {
+                this.startAmpVisualizer();
+                document.getElementById('amp-status').innerText = "OYNATILIYOR...";
+            } else if(act === 'stop') {
+                this.stopAmpVisualizer();
+                document.getElementById('amp-status').innerText = "DURDU";
+            } else if(act === 'pause') {
+                this.stopAmpVisualizer();
+                document.getElementById('amp-status').innerText = "DURAKLATILDI";
+            }
+        }
+        startAmpVisualizer() {
+            if(this.ampInterval) clearInterval(this.ampInterval);
+            this.ampInterval = setInterval(() => {
+                document.querySelectorAll('.amp-bar').forEach(bar => {
+                    bar.style.height = Math.random() * 40 + 5 + 'px';
+                });
+            }, 100);
+        }
+        stopAmpVisualizer() {
+            if(this.ampInterval) clearInterval(this.ampInterval);
+            document.querySelectorAll('.amp-bar').forEach(bar => bar.style.height = '2px');
         }
     }
 
